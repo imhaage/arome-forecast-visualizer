@@ -1,0 +1,95 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>GRIB2 Decoder Demo</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+        .container {
+            border: 1px solid #ccc;
+            padding: 20px;
+            border-radius: 5px;
+        }
+        .section {
+            margin-bottom: 20px;
+        }
+        button {
+            background-color: #4CAF50;
+            color: white;
+            padding: 10px 20px;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            margin-right: 10px;
+        }
+        button:hover {
+            background-color: #45a049;
+        }
+        pre {
+            background-color: #f4f4f4;
+            padding: 10px;
+            border-radius: 4px;
+            overflow-x: auto;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>GRIB2 Decoder Demo</h1>
+        <p>This is a browser-compatible GRIB2 decoder implementation.</p>
+
+        <div class="section">
+            <h2>Test Section Parsing</h2>
+            <button onclick="testBasicDecoding()">Run Basic Test</button>
+            <div id="testResults"></div>
+        </div>
+
+        <div class="section">
+            <h2>Decoder Information</h2>
+            <p>This decoder implements:</p>
+            <ul>
+                <li>GRIB2 Edition 2 parsing</li>
+                <li>Section 0-7 parsing</li>
+                <li>Simple packing (type 0) support</li>
+                <li>Constant value packing (type 40)</li>
+                <li>IEEE 754 single precision packing (type 254)</li>
+                <li>Missing data handling (type 255)</li>
+            </ul>
+        </div>
+    </div>
+
+    <script type="module">
+        import { decodeGRIB2, parseGRIB2Header } from './src/decoder.js';
+
+        function testBasicDecoding() {
+            const resultsDiv = document.getElementById('testResults');
+            try {
+                // Create a minimal valid GRIB2 structure for testing
+                const buffer = new ArrayBuffer(100);
+                const view = new Uint8Array(buffer);
+
+                // Write basic GRIB2 signature
+                view[0] = 0x47; // 'G'
+                view[1] = 0x52; // 'R'
+                view[2] = 0x49; // 'I'
+                view[3] = 0x42; // 'B'
+                view[4] = 0x02; // edition = 2
+                view[5] = 0x00; // length bytes (will be updated)
+                view[6] = 0x00;
+                view[7] = 0x08; // length
+
+                const result = parseGRIB2Header(buffer);
+                resultsDiv.innerHTML = '<pre>Basic parsing works: ' + JSON.stringify(result, null, 2) + '</pre>';
+            } catch (error) {
+                resultsDiv.innerHTML = '<pre>Error: ' + error.message + '</pre>';
+            }
+        }
+    </script>
+</body>
+</html>

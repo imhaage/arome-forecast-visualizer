@@ -1,0 +1,12 @@
+{
+  "name": "grib2-decoder",
+  "version": "0.1.0",
+  "description": "Browser-compatible GRIB2 decoder (edition 2) supporting simple & complex packing",
+  "type": "module",
+  "main": "src/decoder.js",
+  "browser": "src/decoder.js",
+  "exports": {
+    ".": "./src/decoder.js"
+  },
+  "license": "Apache-2.0"
+}
