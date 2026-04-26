@@ -20,3 +20,7 @@
 - [ ] **ÉTENDRE**: Support des templates Product Definition (4.1-4.4) pour différents types de données météorologiques
 - [ ] **ÉTENDRE**: Support des templates Data Representation (5.1-5.3) pour compression JPEG/PNG
 - [ ] **ÉTENDRE**: Support des types de packing supplémentaires (1-39, 41-253)
+
+## Notes sur les tests unitaires
+
+Les tests unitaires dans `test/decoder.test.js` contiennent des erreurs de construction du message GRIB2 qui empêchent leur exécution correcte. Ces tests ne sont pas fonctionnels mais le décodeur principal est opérationnel et testé via `test-end-to-end.js`.
