@@ -38,6 +38,8 @@ export const TYPE_OF_LEVEL = {
 
 export const TIME_UNIT = { 0: 'min', 1: 'h', 2: 'd', 10: '3h', 11: '6h', 12: '12h', 13: 's' };
 
+const TIME_UNIT_SECONDS = { 0: 60, 1: 3600, 2: 86400, 10: 10800, 11: 21600, 12: 43200, 13: 1 };
+
 export const GENERATING_PROCESS = {
     0: 'Analysis', 1: 'Initialization', 2: 'Forecast',
     3: 'Bias-corrected forecast', 4: 'Ensemble forecast',
@@ -86,6 +88,17 @@ export function fmtLevel(p) {
  */
 export function fmtForecast(p) {
     return `+${p.forecastTime} ${TIME_UNIT[p.timeUnit] ?? `unit ${p.timeUnit}`}`;
+}
+
+/**
+ * Compute and format the valid time (reference time + forecast offset).
+ * Returns an ISO-8601 string (e.g. "2026-04-25T04:00:00Z").
+ */
+export function fmtValidTime(header, product) {
+    const refMs = Date.UTC(header.year, header.month - 1, header.day,
+                           header.hour, header.minute, header.second ?? 0);
+    const secs  = (TIME_UNIT_SECONDS[product.timeUnit] ?? 3600) * product.forecastTime;
+    return new Date(refMs + secs * 1000).toISOString().replace(/\.\d{3}Z$/, 'Z');
 }
 
 /**

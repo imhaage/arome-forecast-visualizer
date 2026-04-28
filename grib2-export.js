@@ -27,6 +27,7 @@ import { pipeline }          from 'node:stream/promises';
 import { Readable }          from 'node:stream';
 import { decodeGRIB2, iterateGRIB2Messages, MISSING_VALUE } from './src/decoder.js';
 import { computeStats } from './src/stats.js';
+import { fmtRefTime, fmtValidTime } from './src/wmo-tables.js';
 
 // ─── Args ─────────────────────────────────────────────────────────────────────
 
@@ -80,14 +81,14 @@ if (!variable) {
     console.log(`GRIB2 variables in ${basename(inputPath)}:`);
     console.log();
 
-    const COL = { idx: 3, sn: 10, name: 38, units: 14, level: 20, fcst: 12 };
+    const COL = { idx: 3, sn: 10, name: 38, units: 14, level: 20 };
     const hdr = [
         '#'.padEnd(COL.idx),
         'shortName'.padEnd(COL.sn),
         'name'.padEnd(COL.name),
         'units'.padEnd(COL.units),
         'level'.padEnd(COL.level),
-        'forecastTime',
+        'validTime',
     ].join('  ');
     console.log(hdr);
     console.log('─'.repeat(hdr.length));
@@ -95,14 +96,13 @@ if (!variable) {
     for (const msg of iterateGRIB2Messages(fileData)) {
         const p = msg.product;
         const lvl = `${p.levelValue} (typeOfSurface=${p.typeOfFirstFixedSurface})`;
-        const fct = `+${p.forecastTime} (unit=${p.timeUnit})`;
         console.log([
             String(msg.index).padEnd(COL.idx),
             p.shortName.padEnd(COL.sn),
             p.name.slice(0, COL.name - 1).padEnd(COL.name),
             p.units.slice(0, COL.units - 1).padEnd(COL.units),
             lvl.slice(0, COL.level - 1).padEnd(COL.level),
-            fct,
+            fmtValidTime(msg.header, p),
         ].join('  '));
     }
     console.log();
@@ -157,13 +157,11 @@ console.log(lbl('Name')             + product.name);
 console.log(lbl('Units')            + product.units);
 console.log(lbl('Level type')       + product.typeOfFirstFixedSurface);
 console.log(lbl('Level value')      + product.levelValue);
-console.log(lbl('Forecast time')    + `+${product.forecastTime} (timeUnit=${product.timeUnit})`);
+console.log(lbl('Valid time')        + fmtValidTime(header, product));
 console.log();
 console.log('── Identification ───────────────────────────────────');
 console.log(lbl('Centre')           + header.centre);
-const dt = `${header.year}-${String(header.month).padStart(2,'0')}-${String(header.day).padStart(2,'0')}`
-         + `T${String(header.hour).padStart(2,'0')}:${String(header.minute).padStart(2,'0')}Z`;
-console.log(lbl('Reference time')   + dt);
+console.log(lbl('Reference time')   + fmtRefTime(header));
 console.log();
 console.log('── Grid ─────────────────────────────────────────────');
 console.log(lbl('Dimensions')       + `${grid.ni} × ${grid.nj} = ${grid.totalPoints.toLocaleString()} pts`);

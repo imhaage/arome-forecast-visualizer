@@ -367,7 +367,7 @@
 import chroma from 'https://esm.sh/chroma-js@2.4.2';
 import { iterateGRIB2Messages, decodeGRIB2, MISSING_VALUE } from './src/index.js';
 import { computeStats } from './src/stats.js';
-import { CENTRES, GENERATING_PROCESS, fmtRefTime, fmtLevel, fmtForecast } from './src/wmo-tables.js';
+import { CENTRES, GENERATING_PROCESS, fmtRefTime, fmtLevel, fmtValidTime } from './src/wmo-tables.js';
 
 // ── State ─────────────────────────────────────────────────────────────────────
 // Kept in memory: no cross-page serialization needed.
@@ -451,7 +451,7 @@ function renderHeatmap() {
 // ── Card builder ──────────────────────────────────────────────────────────────
 
 function buildCard(msg) {
-  const { index, product: p, grid: g } = msg;
+  const { index, header, product: p, grid: g } = msg;
   const row = (key, val) => `
     <div class="card-row">
       <span class="key">${key}</span>
@@ -466,7 +466,7 @@ function buildCard(msg) {
       <div class="card-rows">
         ${row('Unit',       p.units)}
         ${row('Level',      fmtLevel(p))}
-        ${row('Forecast',   fmtForecast(p))}
+        ${row('Valid time', fmtValidTime(header, p))}
         ${row('Process',    code(GENERATING_PROCESS, p.typeOfGeneratingProcess))}
         <hr class="card-divider">
         ${row('Grid',       fmtGrid(g))}
@@ -529,7 +529,7 @@ async function showGridView(shortName) {
   document.getElementById('gv-badge').textContent = p.shortName;
   document.getElementById('gv-name').textContent  = p.name;
   document.getElementById('gv-sub').textContent   =
-    `${fmtLevel(p)} · ${fmtForecast(p)}`;
+    `${fmtLevel(p)} · ${fmtValidTime(msg.header, p)}`;
 
   // Reset stats + show loading
   for (const id of ['gv-min','gv-max','gv-mean','gv-valid']) {
