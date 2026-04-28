@@ -1,476 +1,664 @@
 /**
- * GRIB2 Decoder – browser-compatible pure JavaScript implementation.
+ * GRIB2 Decoder — browser-compatible pure JavaScript implementation.
  *
- * Based on the eccodes C library source code and the WMO FM-92 GRIB Edition 2 specification.
+ * Based on the WMO FM-92 GRIB Edition 2 specification and the eccodes C source.
  *
- * Supported encoding types:
- *   0 – Simple packing (most common)
- *   40 – Constant (all values equal)
- *   254 – Grid IEEE (32-bit floats, big-endian)
- *   255 – Missing data
+ * Supported data representation templates:
+ *   0   – Simple packing
+ *   40  – Constant field (all values equal)
+ *   42  – CCSDS lossless compression (Golomb-Rice via libaec WASM)
+ *   254 – Grid IEEE 754 (32-bit floats, big-endian)
+ *   255 – All values missing
  *
- * GRIB2 message structure:
- *   Section 0: "GRIB" + edition + message length (8 bytes)
- *   Section 1: Identification (centre, time, discipline, etc.)
- *   Section 2: Product Definition Template
- *   Section 3: Grid Definition Template (Ni, Nj, lat/lon, flags)
- *   Section 4: Bitmap (1 bit per grid point)
- *   Section 5: Representation of Data (packing type + parameters)
- *   Section 6: Local Use (optional)
- *   Section 7: Packed data + "7777" ending marker
+ * GRIB2 message structure (per WMO FM-92):
+ *   Section 0  (16 bytes) : "GRIB" + reserved + discipline + edition + 8-byte length
+ *   Section 1  (variable) : Identification (centre, time, discipline …)
+ *   Section 2  (optional) : Local Use
+ *   Section 3  (variable) : Grid Definition Template
+ *   Section 4  (variable) : Product Definition Template
+ *   Section 5  (variable) : Data Representation Template (packing parameters)
+ *   Section 6  (variable) : Bitmap (1 bit per grid point, or absent)
+ *   Section 7  (variable) : Packed / compressed data values
+ *   Section 8  (4 bytes)  : "7777" end marker
+ *
+ * Each section 1–7 header:
+ *   [0-3] 4 bytes — total section length in octets (including this header)
+ *   [4]   1 byte  — section number (1–7)
+ *   [5…]          — section-specific content
  */
 
-// ─── Utilities ────────────────────────────────────────────────────────────────
+import { ccsdsDecodeBuffer, AEC_FLAGS_LE } from './wasm/ccsds-loader.js';
+import { lookupParameter } from './parameters.js';
 
-function u16be(data, i) { return (data[i] << 8) | data[i + 1]; }
-function u24be(data, i) { return (data[i] << 16) | (data[i + 1] << 8) | data[i + 2]; }
-function u32be(data, i) { return ((data[i] << 24) | (data[i + 1] << 16) | (data[i + 2] << 8) | data[i + 3]) >>> 0; }
-function i32be(data, i) {
-    const v = (data[i] << 24) | (data[i + 1] << 16) | (data[i + 2] << 8) | data[i + 3];
-    return v >= 0x80000000 ? v - 0x100000000 : v;
-}
+// ─── Byte helpers ─────────────────────────────────────────────────────────────
+
+const u8  = (d, i) => d[i];
+const u16 = (d, i) => (d[i] << 8) | d[i + 1];
+const u32 = (d, i) => (((d[i] << 24) | (d[i + 1] << 16) | (d[i + 2] << 8) | d[i + 3]) >>> 0);
+const i32 = (d, i) => { const v = u32(d, i); return v >= 0x80000000 ? v - 0x100000000 : v; };
+// Signed 16-bit using "sign-magnitude" encoding (GRIB2 scale factors):
+// bit 15 = sign, bits 14-0 = magnitude.
+const sm16 = (d, i) => {
+    const raw = u16(d, i);
+    return (raw & 0x8000) ? -(raw & 0x7FFF) : raw;
+};
+// IEEE 754 single-precision big-endian
+const f32be = (d, i) => new DataView(d.buffer, d.byteOffset + i, 4).getFloat32(0, false);
 
 // ─── Section walker ───────────────────────────────────────────────────────────
 
 /**
- * Walk the raw GRIB2 byte stream and extract section boundaries.
+ * Parse Section 0 and walk Sections 1–7, returning their byte boundaries.
+ *
+ * Section 0 layout (16 bytes):
+ *   [0-3]  = "GRIB"
+ *   [4-5]  = Reserved (ignore; Météo-France writes 0xFF 0xFF)
+ *   [6]    = Discipline
+ *   [7]    = Edition (must be 2)
+ *   [8-15] = Total message length (8 bytes big-endian)
+ *
+ * Section 1–7 header (5 bytes):
+ *   [0-3]  = Total section length (4 bytes big-endian)
+ *   [4]    = Section number
  */
 function walkSections(data) {
+    if (data.length < 16) throw new Error('Buffer too short for GRIB2 Section 0');
+
     const sig = String.fromCharCode(data[0], data[1], data[2], data[3]);
     if (sig !== 'GRIB') throw new Error('Invalid GRIB signature');
 
-    const edition = data[4];
-    if (edition !== 2) throw new Error(`Expected GRIB2 edition, got ${edition}`);
+    // Edition is at byte 7 (bytes 4-5 are reserved, byte 6 is discipline)
+    const edition = data[7];
+    if (edition !== 2) throw new Error(`Expected GRIB edition 2, got ${edition}`);
 
-    const messageLength = u24be(data, 5);
+    const discipline = data[6];
 
+    // Message length: 8-byte big-endian at bytes 8-15.
+    // JavaScript can safely handle files up to 2^53 bytes; use the lower 32 bits
+    // for sizes that fit (upper 32 bits should be 0 for files < 4 GB).
+    const msgLenHi = u32(data, 8);
+    const msgLenLo = u32(data, 12);
+    const messageLength = msgLenHi * 0x100000000 + msgLenLo;
+
+    // Walk sections starting after Section 0
     const sections = {};
-    let offset = 8;
+    let offset = 16;
 
-    for (let s = 1; s <= 8; s++) {
-        if (offset + 4 > data.length) break;
+    while (offset + 5 <= data.length) {
+        const secLen = u32(data, offset);
+        const secNum = data[offset + 4];
 
-        const secNum = data[offset];
-        const secLen = u24be(data, offset + 1);
-        const dataOff = offset + 4;
+        if (secLen < 5) throw new Error(`Invalid section length ${secLen} at offset ${offset}`);
 
+        // dataStart: byte after the 5-byte header
         sections[secNum] = {
-            number: secNum,
-            length: secLen,
-            dataOffset: dataOff,
-            raw: data.slice(dataOff, dataOff + secLen),
+            number:    secNum,
+            offset,
+            secLen,
+            dataStart: offset + 5,
         };
 
-        offset = dataOff + secLen;
         if (secNum === 7) break;
+        offset += secLen;
     }
 
-    // Find "7777" ending marker
-    const s7 = sections[7];
-    let dataOffset = s7 ? s7.dataOffset : offset;
-    let dataLength = -1;
-
-    for (let i = dataOffset; i <= data.length - 4; i++) {
-        if (data[i] === 0x77 && data[i + 1] === 0x77 && data[i + 2] === 0x77 && data[i + 3] === 0x77) {
-            dataLength = i - dataOffset;
-            break;
-        }
-    }
-
-    if (dataLength < 0) dataLength = messageLength - (dataOffset - 8) - 4;
-    if (dataLength < 0) dataLength = 0;
-
-    return { edition, messageLength, sections, dataOffset, dataLength };
+    return { edition, discipline, messageLength, sections };
 }
 
 // ─── Section 1: Identification ────────────────────────────────────────────────
 
 /**
- * Parse Section 1 (Identification).
+ * Parse Section 1 (Identification Section).
  *
- * Layout (per GRIB2 spec):
- *   [Table 1.0: 1 byte] [Centre: 2 bytes BE] [Sub-centre: 2 bytes BE]
- *   [Reference time (modified Julian day): 1 byte]
- *   [Year: 2 bytes BE] [Month: 1 byte] [Day: 1 byte] [Hour: 1 byte] [Minute: 1 byte]
- *   [Table 1.1: 1 byte] [Table 1.2: 1 byte] [Discipline: 1 byte] [Num Octet 8 appended: 1 byte]
+ * Data layout (0-indexed from dataStart, i.e. after the 5-byte section header):
+ *   [0-1]  Centre (Uint16 BE) — WMO code table 0.1 (85 = Météo-France)
+ *   [2-3]  Sub-centre (Uint16 BE)
+ *   [4]    Master tables version number
+ *   [5]    Local tables version number
+ *   [6]    Significance of reference time (code table 1.2)
+ *   [7-8]  Year (Uint16 BE)
+ *   [9]    Month
+ *   [10]   Day
+ *   [11]   Hour
+ *   [12]   Minute
+ *   [13]   Second
+ *   [14]   Production status (code table 1.3)
+ *   [15]   Type of processed data (code table 1.4)
  */
-function parseSection1(raw) {
-    if (!raw || raw.length < 16) return {};
-
+function parseSection1(data, dataStart) {
+    if (dataStart + 16 > data.length) return {};
+    const d = dataStart;
     return {
-        table1_0: raw[0],
-        centre: u16be(raw, 1),
-        subCentre: u16be(raw, 3),
-        referenceTime: raw[5],
-        year: u16be(raw, 6),
-        month: raw[8],
-        day: raw[9],
-        hour: raw[10],
-        minute: raw[11],
-        table1_1: raw[12],
-        table1_2: raw[13],
-        discipline: raw[14],
-        numOctet8Appended: raw[15],
+        centre:                u16(data, d),
+        subCentre:             u16(data, d + 2),
+        masterTablesVersion:   u8(data, d + 4),
+        localTablesVersion:    u8(data, d + 5),
+        referenceTimeSignificance: u8(data, d + 6),
+        year:                  u16(data, d + 7),
+        month:                 u8(data, d + 9),
+        day:                   u8(data, d + 10),
+        hour:                  u8(data, d + 11),
+        minute:                u8(data, d + 12),
+        second:                u8(data, d + 13),
+        productionStatus:      u8(data, d + 14),
+        typeOfData:            u8(data, d + 15),
     };
 }
 
 // ─── Section 3: Grid Definition ───────────────────────────────────────────────
 
 /**
- * Parse Section 3 (Grid Definition Template 0.0 – lat/lon, regular Earth).
+ * Parse Section 3, Template 3.0 (Latitude/Longitude grid).
  *
- * Layout:
- *   [Ni: 2 bytes BE] [Nj: 2 bytes BE] [Total points: 4 bytes BE]
- *   [Reference position: 1 byte] [Lat1: 4 bytes BE signed] [Lon1: 4 bytes BE signed]
- *   [Lat2: 4 bytes BE signed] [Lon2: 4 bytes BE signed]
- *   [Flags: 1 byte] [Rotation angle?: 4 bytes BE signed]
- *   [Dx: 4 bytes BE] [Dy: 4 bytes BE]
- *   ... more fields possible
+ * Generic Section 3 header (9 bytes from dataStart):
+ *   [0]    Source of grid definition (0 = WMO table 3.0)
+ *   [1-4]  Number of data points (Ni × Nj, Uint32 BE)
+ *   [5]    Number of octets for optional list
+ *   [6]    Interpretation of optional list
+ *   [7-8]  Grid Definition Template Number (Uint16 BE)
  *
- * Flags byte:
- *   bits 0-2: scan mode (7 = normal, 11 = j scans negatively, etc.)
- *   bit 4: boustrophedic order
- *   bit 5: rotation applied
+ * Template 3.0 data (from dataStart + 9):
+ *   [0]    Shape of Earth (code table 3.2)
+ *   [1]    Scale factor of radius of spherical Earth
+ *   [2-5]  Scaled value of radius
+ *   [6]    Scale factor of Earth major axis
+ *   [7-10] Scaled value of major axis
+ *   [11]   Scale factor of Earth minor axis
+ *   [12-15]Scaled value of minor axis
+ *   [16-19] Ni (Uint32 BE)
+ *   [20-23] Nj (Uint32 BE)
+ *   [24-27] Basic angle (Uint32 BE; 0 → unit = 10^-6 degrees)
+ *   [28-31] Subdivisions of basic angle
+ *   [32-35] La1: latitude of first point (Int32 BE, 10^-6 degrees)
+ *   [36-39] Lo1: longitude of first point (Int32 BE, 10^-6 degrees, 0..360×10^6)
+ *   [40]    Resolution and component flags
+ *   [41-44] La2: latitude of last point (Int32 BE)
+ *   [45-48] Lo2: longitude of last point (Int32 BE)
+ *   [49-52] Di: i-direction increment (Uint32 BE, 10^-6 degrees)
+ *   [53-56] Dj: j-direction increment (Uint32 BE, 10^-6 degrees)
+ *   [57]    Scanning mode flags
  */
-function parseSection3(raw) {
+function parseSection3(data, dataStart) {
     const result = {
+        templateNumber: 0,
         totalPoints: 0,
-        ni: 0,
-        nj: 0,
-        latitudeOfFirstPoint: 0,
-        longitudeOfFirstPoint: 0,
-        latitudeOfLastPoint: 0,
-        longitudeOfLastPoint: 0,
-        scanMode: 0,
-        rotationApplied: false,
-        boustrophedic: false,
-        dx: 0,
-        dy: 0,
+        ni: 0, nj: 0,
+        latitudeOfFirstPoint: 0, longitudeOfFirstPoint: 0,
+        latitudeOfLastPoint: 0,  longitudeOfLastPoint: 0,
+        di: 0, dj: 0,
+        scanningMode: 0,
     };
 
-    if (!raw || raw.length < 32) return result;
+    const d = dataStart;
+    if (d + 9 > data.length) return result;
 
-    result.ni = u16be(raw, 0);
-    result.nj = u16be(raw, 2);
-    result.totalPoints = result.ni * result.nj;
+    result.templateNumber = u16(data, d + 7);
+    result.totalPoints    = u32(data, d + 1);
 
-    // Bytes 4-7: total points field (check if present)
-    const totalField = u32be(raw, 4);
-    if (totalField > 0 && totalField !== result.ni * result.nj) {
-        result.totalPoints = totalField;
-    }
-
-    // Byte 8: reference position
-    const refPos = raw[8] !== undefined ? raw[8] : 0;
-
-    // Bytes 9-22: coordinates (signed, 10^-6 degrees)
-    result.latitudeOfFirstPoint = i32be(raw, 9) / 1000000;
-    result.longitudeOfFirstPoint = i32be(raw, 13) / 1000000;
-    result.latitudeOfLastPoint = i32be(raw, 17) / 1000000;
-    result.longitudeOfLastPoint = i32be(raw, 21) / 1000000;
-
-    // Byte 25: flags
-    if (raw.length > 25) {
-        const flags = raw[25];
-        result.scanMode = flags & 0x07;
-        result.rotationApplied = !!(flags & 0x20);
-        result.boustrophedic = !!(flags & 0x10);
-    }
-
-    // If rotation applied, byte 26-29: angle
-    if (result.rotationApplied && raw.length > 29) {
-        result.angleOfRotation = i32be(raw, 26) / 1000000;
-    }
-
-    // Dx, Dy (meters) at byte 30 (or 34 if rotated)
-    const dxOff = result.rotationApplied ? 34 : 30;
-    if (raw.length > dxOff) {
-        result.dx = u32be(raw, dxOff);
-    }
-    if (raw.length > dxOff + 4) {
-        result.dy = u32be(raw, dxOff + 4);
-    }
-
-    return result;
-}
-
-// ─── Section 4: Bitmap ────────────────────────────────────────────────────────
-
-/**
- * Parse Section 4 (Bitmap).
- *
- * Layout:
- *   [Number of points: 4 bytes BE] [Bitmap indicator: 1 byte]
- *   [Bitmap bytes: (N+7)/8 bytes, 1 bit per point]
- *
- * Bitmap indicator:
- *   255 = no bitmap (all values present)
- *   0-254 = bitmap present, encoded as 1-bit flags
- *   Value 0 = missing value, value 1 = value present
- */
-function parseSection4(raw) {
-    const result = {
-        numberOfPoints: 0,
-        hasBitmap: true,
-        bitmapIndicator: 0,
-    };
-
-    if (!raw || raw.length < 5) return result;
-
-    // In buildMessage, numberOfPoints is at raw[0..3]
-    result.numberOfPoints = u32be(raw, 0);
-    // bitmapIndicator at raw[4]
-    result.bitmapIndicator = raw[4];
-    result.hasBitmap = result.bitmapIndicator !== 255;
-
-    if (!result.hasBitmap) {
+    if (result.templateNumber !== 0) {
+        // Only Template 3.0 (regular lat/lon) is fully parsed here
         return result;
     }
 
-    // Bitmap data starts at byte 5
-    const bitmapBits = new Uint8Array(result.numberOfPoints);
-    let bitOffset = 0;
+    const t = d + 9; // template-specific data start
+    if (t + 58 > data.length) return result;
 
-    for (let i = 0; i < result.numberOfPoints; i++) {
-        const byteIdx = 5 + (bitOffset >>> 3);
-        const bitIdx = 7 - (bitOffset & 7);
-        if (byteIdx < raw.length) {
-            bitmapBits[i] = (raw[byteIdx] >> bitIdx) & 1;
-        }
-        bitOffset++;
-    }
+    result.ni = u32(data, t + 16);
+    result.nj = u32(data, t + 20);
+    if (result.totalPoints === 0) result.totalPoints = result.ni * result.nj;
 
-    result.bitmap = bitmapBits;
+    // Longitude range in GRIB2 is [0, 360×10^6]; convert to [-180, 180] for convenience
+    const lo1raw = i32(data, t + 36);
+    const lo2raw = i32(data, t + 45);
+
+    result.latitudeOfFirstPoint  = i32(data, t + 32) / 1e6;
+    result.longitudeOfFirstPoint = lo1raw > 180e6 ? (lo1raw - 360e6) / 1e6 : lo1raw / 1e6;
+    result.latitudeOfLastPoint   = i32(data, t + 41) / 1e6;
+    result.longitudeOfLastPoint  = lo2raw > 180e6 ? (lo2raw - 360e6) / 1e6 : lo2raw / 1e6;
+    result.di                    = u32(data, t + 49) / 1e6;
+    result.dj                    = u32(data, t + 53) / 1e6;
+    result.scanningMode          = u8(data, t + 57);
+
     return result;
 }
 
-// ─── Section 5: Representation of Data ────────────────────────────────────────
+// ─── Section 4: Product Definition ───────────────────────────────────────────
 
 /**
- * Parse Section 5 (Representation of Data, Template 0 – Simple Packing).
+ * Parse Section 4 (Product Definition Section).
  *
- * Layout:
- *   [Type of original field: 1 byte] [Type of processed field: 1 byte]
- *   [Type of representation: 1 byte]
- *   [Bits & bytes for reference value: 1 byte]
- *   [Reference value R0: N bytes]
- *   [Bits & bytes for decimal scale factor: 1 byte]
- *   [Decimal scale factor Kdec: N bytes]
- *   [Bits & bytes for binary scale factor: 1 byte]
- *   [Binary scale factor Kbin: N bytes]
- *   [Bits & bytes for bits per value: 1 byte]
- *   [Bits per value: 1 byte]
- *   [Number of points: 4 bytes BE]
- *   ...
+ * Generic Section 4 header (4 bytes from dataStart):
+ *   [0-1]  Number of coordinate values after template (Uint16 BE)
+ *   [2-3]  Product Definition Template Number (Uint16 BE) — code table 4.0
  *
- * The "Bits & bytes" field: upper nibble = number of bytes, lower nibble = number of bits.
- * For scaling factors, the lower nibble typically gives the exponent (for decimal scale factor)
- * or the binary exponent (for binary scale factor).
+ * Template 4.0 and 4.8 share the same first 19 octets of template data
+ * (starting at dataStart + 4):
+ *   [0]    parameterCategory
+ *   [1]    parameterNumber
+ *   [2]    typeOfGeneratingProcess
+ *   [3]    backgroundGeneratingProcessIdentifier
+ *   [4]    analysisOrForecastGeneratingProcessIdentifier
+ *   [5-6]  hoursAfterDataCutoff (Uint16 BE)
+ *   [7]    minutesAfterDataCutoff
+ *   [8]    indicatorOfUnitOfTimeRange (code table 4.4)
+ *   [9-12] forecastTime (Uint32 BE; units per byte [8])
+ *   [13]   typeOfFirstFixedSurface (code table 4.5)
+ *   [14]   scaleFactorOfFirstFixedSurface
+ *   [15-18] scaledValueOfFirstFixedSurface (Uint32 BE)
+ *
+ * @param {Uint8Array} data
+ * @param {number} dataStart - byte offset of the first post-header byte
+ * @param {number} discipline - discipline byte from Section 0
+ * @returns {{
+ *   pdtNumber:               number,
+ *   parameterCategory:       number,
+ *   parameterNumber:         number,
+ *   typeOfGeneratingProcess: number,
+ *   timeUnit:                number,
+ *   forecastTime:            number,
+ *   typeOfFirstFixedSurface: number,
+ *   levelScaleFactor:        number,
+ *   levelScaledValue:        number,
+ *   levelValue:              number,
+ *   name:                    string,
+ *   shortName:               string,
+ *   units:                   string,
+ * }}
  */
-function parseSection5(raw) {
+export function parseSection4(data, dataStart, discipline) {
     const result = {
-        representationType: 0,
-        referenceValue: 0,
-        decimalScaleFactor: 0,
-        binaryScaleFactor: 0,
-        bitsPerValue: 8,
-        numberOfPoints: 0,
+        pdtNumber:               0,
+        parameterCategory:       255,
+        parameterNumber:         255,
+        typeOfGeneratingProcess: 255,
+        timeUnit:                255,
+        forecastTime:            0,
+        typeOfFirstFixedSurface: 255,
+        levelScaleFactor:        0,
+        levelScaledValue:        0,
+        levelValue:              0,
+        name:                    'Unknown',
+        shortName:               'unknown',
+        units:                   'unknown',
     };
 
-    if (!raw || raw.length < 4) return result;
+    if (dataStart + 4 > data.length) return result;
 
-    // Bytes 0-2: original field type, processed field type, representation type
-    result.representationType = raw[2];
+    const d = dataStart;
+    result.pdtNumber = u16(data, d + 2);
 
-    if (result.representationType === 0) {
-        // Simple packing - parse according to the GRIB2 spec
-        const refBb = raw[3];
-        const decBb = raw[8];
-        const binBb = raw[12];
-        const bpvBb = raw[16];
+    // Template data starts at d + 4 (after numCoordValues and pdtNumber)
+    const t = d + 4;
+    if (t + 19 > data.length) return result;
 
-        // Reference value: 4 bytes BE starting at byte 4
-        result.referenceValue = u32be(raw, 4);
+    result.parameterCategory       = u8(data, t);
+    result.parameterNumber         = u8(data, t + 1);
+    result.typeOfGeneratingProcess = u8(data, t + 2);
+    result.timeUnit                = u8(data, t + 8);
+    result.forecastTime            = u32(data, t + 9);
+    result.typeOfFirstFixedSurface = u8(data, t + 13);
+    result.levelScaleFactor        = u8(data, t + 14);
+    result.levelScaledValue        = u32(data, t + 15);
 
-        // Decimal scale factor:
-        // The "Bits & bytes" descriptor in byte 8 (upper nibble = byte count, lower nibble = bit count)
-        // When byte count is 0 (as in the example), value is stored in the lower nibble of that byte
-        const decNumBytes = decBb >>> 4;
-        if (decNumBytes === 0) {
-            result.decimalScaleFactor = decBb & 0x0F;
-        } else {
-            result.decimalScaleFactor = i32be(raw, 9);
+    // Compute physical level value: scaledValue × 10^(-scaleFactor)
+    // 0xFF (255) means "not applicable" per WMO — treat as 0
+    result.levelValue = (result.levelScaleFactor === 0 || result.levelScaleFactor === 255)
+        ? result.levelScaledValue
+        : result.levelScaledValue * Math.pow(10, -result.levelScaleFactor);
+
+    const param      = lookupParameter(discipline, result.parameterCategory, result.parameterNumber);
+    result.name      = param.name;
+    result.shortName = param.shortName;
+    result.units     = param.units;
+
+    return result;
+}
+
+// ─── Section 5: Data Representation ──────────────────────────────────────────
+
+/**
+ * Parse Section 5.
+ *
+ * Generic header (6 bytes from dataStart):
+ *   [0-3]  Number of packed values (Uint32 BE)
+ *   [4-5]  Data Representation Template Number (Uint16 BE)
+ *
+ * Template 5.0 — Simple Packing (from dataStart + 6):
+ *   [0-3]  Reference value R (IEEE 754 float32 big-endian)
+ *   [4-5]  Binary scale factor E  (sign-magnitude Int16 BE)
+ *   [6-7]  Decimal scale factor D (sign-magnitude Int16 BE)
+ *   [8]    Number of bits per value
+ *   [9]    Type of original field values
+ *
+ * Template 5.40 — JPEG 2000 (not implemented)
+ *
+ * Template 5.42 — CCSDS lossless compression (from dataStart + 6):
+ *   [0-3]  Reference value R (IEEE 754 float32 big-endian)
+ *   [4-5]  Binary scale factor E  (sign-magnitude Int16 BE)
+ *   [6-7]  Decimal scale factor D (sign-magnitude Int16 BE)
+ *   [8]    Number of bits per value
+ *   [9]    Type of original field values
+ *   [10]   CCSDS compression options mask (= LibAEC flags bitmask)
+ *   [11]   CCSDS block size
+ *   [12-13]CCSDS Reference Sample Interval (Uint16 BE)
+ */
+function parseSection5(data, dataStart) {
+    const result = {
+        templateNumber:      0,
+        numberOfPackedValues: 0,
+        referenceValue:      0,
+        binaryScaleFactor:   0,
+        decimalScaleFactor:  0,
+        bitsPerValue:        8,
+        // CCSDS-specific
+        ccsdsFlags:     AEC_FLAGS_LE,
+        ccsdsBlockSize: 32,
+        ccsdsRsi:       128,
+    };
+
+    const d = dataStart;
+    if (d + 6 > data.length) return result;
+
+    result.numberOfPackedValues = u32(data, d);
+    result.templateNumber       = u16(data, d + 4);
+
+    const t = d + 6; // template-specific data
+
+    if (result.templateNumber === 0 || result.templateNumber === 42) {
+        if (t + 10 > data.length) return result;
+        result.referenceValue    = f32be(data, t);
+        result.binaryScaleFactor = sm16(data, t + 4);
+        result.decimalScaleFactor= sm16(data, t + 6);
+        result.bitsPerValue      = u8(data, t + 8);
+    }
+
+    if (result.templateNumber === 42) {
+        // CCSDS-specific parameters
+        if (t + 14 <= data.length) {
+            // Raw ccsdsFlags from template = LibAEC bitmask, but we must
+            // strip AEC_DATA_3BYTE (0x02) and AEC_DATA_MSB (0x04) for
+            // little-endian JS/WASM environment (mirrors eccodes modify_aec_flags).
+            const rawFlags       = u8(data, t + 10);
+            result.ccsdsFlags    = rawFlags & ~0x06; // strip 3BYTE and MSB
+            result.ccsdsBlockSize= u8(data, t + 11);
+            result.ccsdsRsi      = u16(data, t + 12);
         }
-
-        // Binary scale factor:
-        const binNumBytes = binBb >>> 4;
-        if (binNumBytes === 0) {
-            result.binaryScaleFactor = binBb & 0x0F;
-        } else {
-            result.binaryScaleFactor = i32be(raw, 13);
+    } else if (result.templateNumber === 40) {
+        // Constant field: reference value already read above as float32
+        if (t + 10 <= data.length) {
+            result.referenceValue = f32be(data, t);
         }
-
-        // Bits per value:
-        result.bitsPerValue = raw[17];
-
-        // Number of points:
-        result.numberOfPoints = u32be(raw, 18);
-    } else if (result.representationType === 40) {
-        // Constant value
-        result.referenceValue = u32be(raw, 8);
-        result.decimalScaleFactor = raw[13];
-        result.numberOfPoints = u32be(raw, 18);
-    } else if (result.representationType === 254) {
-        // IEEE 754 single precision
-        result.bitSize = raw[8];
-        result.numberOfPoints = u32be(raw, 18);
-    } else if (result.representationType === 255) {
-        result.numberOfPoints = u32be(raw, 18);
+    } else if (result.templateNumber === 254) {
+        // IEEE 754 32-bit float grid (no scaling needed)
+        if (t + 5 <= data.length) result.bitsPerValue = u8(data, t + 4);
     }
 
     return result;
 }
 
-// ─── Data decoding ────────────────────────────────────────────────────────────
+// ─── Section 6: Bitmap ────────────────────────────────────────────────────────
 
 /**
- * Read n bits from the bitstream starting at bitOffset[0].
- * bitOffset is a mutable array for in-place updates.
- * Big-endian bit order (MSB first), as specified by GRIB2.
+ * Parse Section 6 (Bitmap Section).
+ *
+ * Data layout (from dataStart):
+ *   [0]   Bitmap indicator (code table 6.0)
+ *           255 = no bitmap (all values present)
+ *           0   = bitmap present
+ *   [1…]  Bitmap bytes (one bit per grid point, MSB first)
  */
-function readBits(data, bitOffset, nBits) {
-    let value = 0;
-    for (let i = 0; i < nBits; i++) {
-        const byteIdx = bitOffset[0] >>> 3;
-        const bitIdx = 7 - (bitOffset[0] & 7);
-        value = (value << 1) | ((data[byteIdx] >> bitIdx) & 1);
-        bitOffset[0]++;
+function parseSection6(data, dataStart, totalPoints) {
+    if (dataStart >= data.length) return { hasBitmap: false, bitmap: null };
+
+    const indicator = u8(data, dataStart);
+    if (indicator === 255) return { hasBitmap: false, bitmap: null };
+
+    // Bitmap present: one bit per grid point
+    const bitmap = new Uint8Array(totalPoints);
+    for (let i = 0; i < totalPoints; i++) {
+        const byteIdx = dataStart + 1 + (i >>> 3);
+        const bitIdx  = 7 - (i & 7);
+        if (byteIdx < data.length) {
+            bitmap[i] = (data[byteIdx] >> bitIdx) & 1;
+        }
     }
-    return value >>> 0; // ensure unsigned
+    return { hasBitmap: true, bitmap };
 }
 
+// ─── Simple packing bitstream reader ─────────────────────────────────────────
+
+function readBits(data, bitPos, nBits) {
+    let value = 0;
+    for (let i = 0; i < nBits; i++) {
+        const byteIdx = bitPos[0] >>> 3;
+        const bitIdx  = 7 - (bitPos[0] & 7);
+        value = (value << 1) | ((data[byteIdx] >> bitIdx) & 1);
+        bitPos[0]++;
+    }
+    return value >>> 0;
+}
+
+// ─── Main decode function ─────────────────────────────────────────────────────
+
 /**
- * Decode a GRIB2 message into structured output.
+ * Decode a GRIB2 message.
  *
- * @param {ArrayBuffer} buffer - GRIB2 message as ArrayBuffer
- * @returns {{ header, grid, values, bitmap }}
+ * @param {ArrayBuffer|Buffer} buffer - Raw GRIB2 message bytes
+ * @returns {Promise<{ header, product, grid, values, bitmap }>}
+ *   header  : parsed Section 1 fields
+ *   product : parsed Section 4 fields (parameterCategory, parameterNumber,
+ *             name, shortName, units, levelValue, forecastTime…)
+ *   grid    : parsed Section 3 fields (Ni, Nj, lat/lon bounds, …)
+ *   values  : Float64Array of physical values (length = totalPoints,
+ *             missing values = -1e100)
+ *   bitmap  : Uint8Array | null (1 = valid value, 0 = missing)
  */
-export function decodeGRIB2(buffer) {
-    const data = new Uint8Array(buffer);
+export async function decodeGRIB2(buffer) {
+    const data = buffer instanceof Uint8Array ? buffer : new Uint8Array(buffer);
 
     // 1. Walk sections
-    const sections = walkSections(data);
+    const walked  = walkSections(data);
+    const secs    = walked.sections;
 
-    // 2. Parse Section 1
-    const s1 = sections.sections[1] ? parseSection1(sections.sections[1].raw) : {};
+    // 2. Section 1 — identification
+    const s1 = secs[1] ? parseSection1(data, secs[1].dataStart) : {};
 
-    // 3. Parse Section 3
-    const s3 = sections.sections[3] ? parseSection3(sections.sections[3].raw) : {};
+    // 3. Section 3 — grid definition
+    const s3 = secs[3] ? parseSection3(data, secs[3].dataStart) : {};
 
-    // 4. Parse Section 4 (bitmap)
-    const s4 = sections.sections[4] ? parseSection4(sections.sections[4].raw) : null;
+    // 3b. Section 4 — product definition (variable identity)
+    const s4 = secs[4]
+        ? parseSection4(data, secs[4].dataStart, walked.discipline)
+        : { shortName: 'unknown', name: 'Unknown', units: 'unknown',
+            pdtNumber: 255, parameterCategory: 255, parameterNumber: 255 };
 
-    // 5. Parse Section 5
-    const s5 = sections.sections[5] ? parseSection5(sections.sections[5].raw) : null;
+    // 4. Section 5 — data representation
+    if (!secs[5]) throw new Error('Section 5 (Data Representation) not found');
+    const s5 = parseSection5(data, secs[5].dataStart);
 
-    if (!s5) throw new Error('Section 5 not found');
+    // 5. Total grid points
+    const totalPoints = s3.totalPoints || s5.numberOfPackedValues;
 
-    // Total number of grid points
-    const numPoints = s3.totalPoints || s4?.numberOfPoints || s5.numberOfPoints || 0;
+    // 6. Section 6 — bitmap
+    const s6 = secs[6]
+        ? parseSection6(data, secs[6].dataStart, totalPoints)
+        : { hasBitmap: false, bitmap: null };
 
-    // 6. Decode data values
-    let values = new Float64Array(numPoints);
-    let bitmap = s4?.bitmap || null;
+    // Output arrays
+    const values = new Float64Array(totalPoints).fill(-1e100);
+    const bitmap = s6.bitmap;
 
-    const dataStart = sections.dataOffset;
-    const dataEnd = sections.dataOffset + sections.dataLength;
+    // Section 7 data boundaries
+    if (!secs[7]) throw new Error('Section 7 (Data) not found');
+    const dataStart = secs[7].dataStart;
+    const dataLen   = secs[7].secLen - 5;
 
-    if (numPoints === 0) {
-        return {
-            header: { ...s1, messageLength: sections.messageLength },
-            grid: s3,
-            values: new Float64Array(0),
-            bitmap: null,
-        };
-    }
+    // 7. Decode values
+    const tmpl = s5.templateNumber;
 
-    switch (s5.representationType) {
-        case 0: {
-            // Simple packing
-            const s = Math.pow(10, s5.decimalScaleFactor);
-            const d = Math.pow(2, -s5.binaryScaleFactor);
-            const bpv = s5.bitsPerValue;
-            const refVal = s5.referenceValue;
-            const bitPos = [dataStart];
+    if (s5.bitsPerValue === 0 || tmpl === 40) {
+        // Constant field
+        values.fill(s5.referenceValue);
 
-            for (let i = 0; i < numPoints; i++) {
-                const coded = readBits(data, bitPos, bpv);
-                values[i] = ((coded * s) + refVal) * d;
-                if (bitmap && bitmap[i] === 0) {
-                    values[i] = -1e100; // missing
-                }
+    } else if (tmpl === 0) {
+        // Simple packing: Y(i) = (R + X(i) × 2^E) × 10^(-D)
+        const bpv    = s5.bitsPerValue;
+        const R      = s5.referenceValue;
+        const bScale = Math.pow(2, s5.binaryScaleFactor);
+        const dScale = Math.pow(10, -s5.decimalScaleFactor);
+        const bitPos = [dataStart * 8]; // bit offset from start of data buffer
+
+        let valIdx = 0;
+        for (let i = 0; i < totalPoints; i++) {
+            if (bitmap && bitmap[i] === 0) continue;
+            if (valIdx >= s5.numberOfPackedValues) break;
+            const coded  = readBits(data, bitPos, bpv);
+            values[i]    = (R + coded * bScale) * dScale;
+            valIdx++;
+        }
+
+    } else if (tmpl === 42) {
+        // CCSDS lossless compression
+        const compressed = data.slice(dataStart, dataStart + dataLen);
+        const decoded    = await ccsdsDecodeBuffer(
+            compressed,
+            s5.numberOfPackedValues,
+            s5.bitsPerValue,
+            s5.ccsdsBlockSize,
+            s5.ccsdsRsi,
+            s5.ccsdsFlags
+        );
+
+        const R      = s5.referenceValue;
+        const bScale = Math.pow(2, s5.binaryScaleFactor);
+        const dScale = Math.pow(10, -s5.decimalScaleFactor);
+
+        let valIdx = 0;
+        for (let i = 0; i < totalPoints; i++) {
+            if (bitmap && bitmap[i] === 0) continue;
+            if (valIdx >= s5.numberOfPackedValues) break;
+            values[i] = (R + decoded[valIdx] * bScale) * dScale;
+            valIdx++;
+        }
+
+    } else if (tmpl === 254) {
+        // IEEE 754 float32 big-endian
+        const view = new DataView(buffer instanceof ArrayBuffer ? buffer : buffer.buffer,
+                                  buffer.byteOffset ?? 0);
+        for (let i = 0; i < s5.numberOfPackedValues; i++) {
+            const offset = dataStart + i * 4;
+            if (offset + 4 <= data.length) {
+                values[i] = view.getFloat32(offset, false);
             }
-            break;
         }
 
-        case 40: {
-            // Constant value
-            const s = Math.pow(10, s5.decimalScaleFactor);
-            const val = s5.referenceValue * s;
-            values.fill(val);
-            break;
-        }
+    } else if (tmpl === 255) {
+        // All values missing — already filled with -1e100
 
-        case 254: {
-            // IEEE 754 single precision, big-endian
-            const view = new DataView(buffer);
-            for (let i = 0; i < numPoints; i++) {
-                values[i] = view.getFloat32(dataStart + i * 4, false); // false = big-endian
-            }
-            break;
-        }
-
-        case 255: {
-            // All values missing
-            values.fill(-1e100);
-            break;
-        }
-
-        default: {
-            throw new Error(`Unsupported representation type: ${s5.representationType}`);
-        }
+    } else {
+        throw new Error(`Unsupported Data Representation Template: ${tmpl}`);
     }
 
     return {
-        header: {
-            ...s1,
-            messageLength: sections.messageLength,
-        },
-        grid: s3,
+        header:  { ...s1, discipline: walked.discipline, messageLength: walked.messageLength },
+        product: s4,
+        grid:    s3,
         values,
         bitmap,
     };
 }
 
 /**
- * Parse only the header of a GRIB2 message (fast, no data decoding).
+ * Parse only Section 0/1/3/4 (fast path — no data decoding).
  *
- * @param {ArrayBuffer} buffer - GRIB2 message buffer
- * @returns {{ header, grid, dataOffset, dataLength, messageLength }}
+ * @param {ArrayBuffer|Buffer} buffer
+ * @returns {{ header, product, grid, dataOffset, dataLength, messageLength }}
  */
 export function parseGRIB2Header(buffer) {
-    const data = new Uint8Array(buffer);
-    const sections = walkSections(data);
-
-    const s1 = sections.sections[1] ? parseSection1(sections.sections[1].raw) : {};
-    const s3 = sections.sections[3] ? parseSection3(sections.sections[3].raw) : {};
+    const data    = buffer instanceof Uint8Array ? buffer : new Uint8Array(buffer);
+    const walked  = walkSections(data);
+    const secs    = walked.sections;
+    const s1      = secs[1] ? parseSection1(data, secs[1].dataStart) : {};
+    const s3      = secs[3] ? parseSection3(data, secs[3].dataStart) : {};
+    const s4      = secs[4]
+        ? parseSection4(data, secs[4].dataStart, walked.discipline)
+        : { shortName: 'unknown', name: 'Unknown', units: 'unknown' };
+    const s7      = secs[7];
 
     return {
-        header: { ...s1, messageLength: sections.messageLength },
-        grid: s3,
-        dataOffset: sections.dataOffset,
-        dataLength: sections.dataLength,
+        header:      { ...s1, discipline: walked.discipline, messageLength: walked.messageLength },
+        product:     s4,
+        grid:        s3,
+        dataOffset:  s7 ? s7.dataStart : 0,
+        dataLength:  s7 ? s7.secLen - 5 : 0,
     };
 }
 
-export { parseSection1, parseSection3, parseSection4, parseSection5, walkSections };
+// ─── Multi-message iterator ───────────────────────────────────────────────────
+
+/**
+ * Iterate over all GRIB2 messages in a concatenated GRIB2 file.
+ *
+ * A GRIB2 file may contain multiple independent messages concatenated end-to-end.
+ * Each message starts with the 4-byte "GRIB" signature and encodes its total
+ * length as an 8-byte big-endian integer at bytes 8-15.
+ *
+ * This generator is synchronous and lightweight — it parses Section 0/1/3/4
+ * headers only (no data decoding). Pass the yielded `buffer` to `decodeGRIB2()`
+ * when you need the actual values for a specific message.
+ *
+ * @param {ArrayBuffer|Uint8Array} buffer - Raw bytes of the concatenated file
+ * @yields {{
+ *   index:   number,     - Zero-based message index
+ *   buffer:  Uint8Array, - Self-contained copy of this message (byteOffset = 0)
+ *   header:  object,     - Section 1 identification fields + discipline
+ *   product: object,     - Section 4 product fields (shortName, name, units…)
+ *   grid:    object,     - Section 3 grid definition fields
+ * }}
+ */
+export function* iterateGRIB2Messages(buffer) {
+    const data   = buffer instanceof Uint8Array ? buffer : new Uint8Array(buffer);
+    let offset   = 0;
+    let index    = 0;
+
+    while (offset + 16 <= data.length) {
+        // Verify "GRIB" signature
+        if (data[offset]     !== 0x47 || data[offset + 1] !== 0x52 ||
+            data[offset + 2] !== 0x49 || data[offset + 3] !== 0x42) {
+            break;
+        }
+
+        // 8-byte message length at bytes 8-15 (big-endian)
+        const msgLenHi = u32(data, offset + 8);
+        const msgLenLo = u32(data, offset + 12);
+        const msgLen   = msgLenHi * 0x100000000 + msgLenLo;
+
+        if (msgLen < 16 || offset + msgLen > data.length) break;
+
+        // Use .slice() (not .subarray()) so byteOffset === 0 in the copy —
+        // required by the tmpl === 254 DataView path in decodeGRIB2().
+        const msgData = data.slice(offset, offset + msgLen);
+
+        const walked = walkSections(msgData);
+        const secs   = walked.sections;
+
+        yield {
+            index,
+            buffer:  msgData,
+            header:  {
+                ...( secs[1] ? parseSection1(msgData, secs[1].dataStart) : {} ),
+                discipline:    walked.discipline,
+                messageLength: walked.messageLength,
+            },
+            product: secs[4]
+                ? parseSection4(msgData, secs[4].dataStart, walked.discipline)
+                : { shortName: 'unknown', name: 'Unknown', units: 'unknown' },
+            grid:    secs[3] ? parseSection3(msgData, secs[3].dataStart) : {},
+        };
+
+        offset += msgLen;
+        index++;
+    }
+}
+
+export { parseSection1, parseSection3, parseSection5, parseSection6, walkSections };
