@@ -15,39 +15,11 @@ import {
     parseSection3,
     parseSection5,
 } from './src/decoder.js';
-
-// ─── Tables ───────────────────────────────────────────────────────────────────
-
-const CENTRES = {
-    7: 'NCEP', 54: 'Canadian Met Centre', 74: 'Met Office (UK)',
-    84: 'Toulouse', 85: 'Météo-France', 96: 'ECMWF',
-    98: 'ECMWF', 255: 'Missing',
-};
-const DISCIPLINES = {
-    0: 'Meteorological', 1: 'Hydrological', 2: 'Land surface',
-    3: 'Space', 4: 'Space weather', 10: 'Oceanographic',
-};
-const REF_TIME_SIGNIFICANCE = {
-    0: 'Analysis', 1: 'Start of forecast', 2: 'Verifying time of forecast',
-    3: 'Observation time',
-};
-const TYPE_OF_DATA = {
-    0: 'Analysis', 1: 'Forecast', 2: 'Analysis and forecast',
-    3: 'Control forecast', 4: 'Perturbed forecast',
-    5: 'Control and perturbed forecast', 6: 'Processed satellite observations',
-    7: 'Processed radar observations', 192: 'Experimental products',
-};
-const DATA_REPR_TEMPLATES = {
-    0: 'Simple packing', 2: 'Complex packing', 3: 'Complex packing with spatial differencing',
-    40: 'Constant field', 41: 'PNG code stream', 42: 'CCSDS recommended lossless compression',
-    254: 'Grid point data – IEEE 754 floats', 255: 'All values missing',
-};
-const SCAN_MODE_BITS = {
-    0x80: 'i scans negatively (E→W)',
-    0x40: 'j scans positively (S→N)',
-    0x20: 'adjacent points in j direction',
-    0x10: 'rows scan alternately (boustrophedon)',
-};
+import {
+    CENTRES, DISCIPLINES, REF_TIME_SIGNIFICANCE, TYPE_OF_DATA,
+    DATA_REPR_TEMPLATES,
+    fmtRefTime, fmtScanMode,
+} from './src/wmo-tables.js';
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -58,14 +30,6 @@ const u32 = (d, i) => (((d[i] << 24) | (d[i + 1] << 16) | (d[i + 2] << 8) | d[i 
 function label(name)   { return name.padEnd(30, '.') + ' '; }
 function code(v, table) { return table[v] !== undefined ? `${v} (${table[v]})` : `${v}`; }
 function padR(s, n)    { return String(s).padStart(n); }
-
-function formatScanMode(mode) {
-    if (mode === 0) return '0 (i W→E, j N→S, rows left-to-right)';
-    const flags = Object.entries(SCAN_MODE_BITS)
-        .filter(([bit]) => mode & Number(bit))
-        .map(([, desc]) => desc);
-    return `0x${mode.toString(16).padStart(2, '0')} (${flags.join('; ') || 'default'})`;
-}
 
 function section(title) {
     const bar = '─'.repeat(60);
@@ -123,10 +87,7 @@ w(label('Sub-centre')                + s1.subCentre);
 w(label('Master tables version')     + s1.masterTablesVersion);
 w(label('Local tables version')      + s1.localTablesVersion);
 w(label('Reference time')            + code(s1.referenceTimeSignificance, REF_TIME_SIGNIFICANCE));
-w(label('Reference datetime')
-    + `${s1.year}-${String(s1.month).padStart(2,'0')}-${String(s1.day).padStart(2,'0')}`
-    + `T${String(s1.hour).padStart(2,'0')}:${String(s1.minute).padStart(2,'0')}:`
-    + `${String(s1.second).padStart(2,'0')}Z`);
+w(label('Reference datetime')        + fmtRefTime(s1));
 w(label('Production status')         + s1.productionStatus);
 w(label('Type of data')              + code(s1.typeOfData, TYPE_OF_DATA));
 
@@ -141,7 +102,7 @@ w(label('La2 (last lat)')  + `${s3.latitudeOfLastPoint.toFixed(6)}°`);
 w(label('Lo2 (last lon)')  + `${s3.longitudeOfLastPoint.toFixed(6)}°`);
 w(label('Di (Δlon)')       + `${s3.di.toFixed(6)}°`);
 w(label('Dj (Δlat)')       + `${s3.dj.toFixed(6)}°`);
-w(label('Scanning mode')   + formatScanMode(s3.scanningMode));
+w(label('Scanning mode')   + fmtScanMode(s3.scanningMode));
 
 w(section('SECTION 5 — Data Representation'));
 w(label('Template')             + code(s5.templateNumber, DATA_REPR_TEMPLATES));

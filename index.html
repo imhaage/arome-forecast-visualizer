@@ -322,58 +322,20 @@
 </div>
 
 <script type="module">
-import { iterateGRIB2Messages, decodeGRIB2 } from './src/index.js';
+import { iterateGRIB2Messages, decodeGRIB2, MISSING_VALUE } from './src/index.js';
+import { computeStats } from './src/stats.js';
+import { CENTRES, GENERATING_PROCESS, fmtRefTime, fmtLevel, fmtForecast } from './src/wmo-tables.js';
 
 // ── State ─────────────────────────────────────────────────────────────────────
 // Kept in memory: no cross-page serialization needed.
 let fileState = null; // { messages: Array }
 
-// ── WMO code tables ───────────────────────────────────────────────────────────
-
-const CENTRES = {
-  7: 'NCEP', 54: 'CMC', 74: 'Met Office', 84: 'Toulouse',
-  85: 'Météo-France', 96: 'ECMWF', 98: 'ECMWF', 255: 'Missing',
-};
-
-const TYPE_OF_LEVEL = {
-  1: 'Ground surface', 2: 'Cloud base', 3: 'Cloud top',
-  6: 'Maximum wind', 7: 'Tropopause', 8: 'Top of atmosphere',
-  10: 'Sea surface',
-  100: 'Isobaric surface (Pa)', 101: 'Mean sea level',
-  102: 'Specific altitude above MSL (m)', 103: 'Specific height above ground (m)',
-  104: 'Sigma level', 105: 'Hybrid level', 106: 'Depth below land surface (m)',
-  107: 'Isentropic level (K)', 108: 'Pressure difference from ground (Pa)',
-  200: 'Entire atmosphere', 204: 'Highest tropospheric freezing level',
-};
-
-const TIME_UNIT = { 0: 'min', 1: 'h', 2: 'd', 10: '3h', 11: '6h', 12: '12h', 13: 's' };
-
-const GENERATING_PROCESS = {
-  0: 'Analysis', 1: 'Initialization', 2: 'Forecast',
-  3: 'Bias-corrected forecast', 4: 'Ensemble forecast',
-};
-
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
 const fmtNum = (v, d = 4) => v.toFixed(d);
-const pad    = n => String(n).padStart(2, '0');
 
 function fmtSize(b) {
   return b >= 1e6 ? (b / 1e6).toFixed(1) + ' MB' : (b / 1e3).toFixed(0) + ' KB';
-}
-function fmtRefTime(h) {
-  return `${h.year}-${pad(h.month)}-${pad(h.day)} ${pad(h.hour)}:${pad(h.minute)} UTC`;
-}
-function fmtLevel(p) {
-  if (p.typeOfFirstFixedSurface === 103) return `${p.levelValue} m above ground`;
-  if (p.typeOfFirstFixedSurface === 100) return `${p.levelValue} Pa`;
-  if (p.typeOfFirstFixedSurface === 1)   return 'Ground surface';
-  if (p.typeOfFirstFixedSurface === 10)  return 'Sea surface';
-  const lbl = TYPE_OF_LEVEL[p.typeOfFirstFixedSurface] ?? `type ${p.typeOfFirstFixedSurface}`;
-  return `${lbl}${p.levelValue ? ' · ' + p.levelValue : ''}`;
-}
-function fmtForecast(p) {
-  return `+${p.forecastTime} ${TIME_UNIT[p.timeUnit] ?? `unit ${p.timeUnit}`}`;
 }
 function fmtGrid(g) {
   return `${g.ni} × ${g.nj} pts · `
@@ -517,16 +479,7 @@ async function showGridView(shortName) {
   const { values, grid: gr } = decoded;
 
   // Stats
-  let min = Infinity, max = -Infinity, sum = 0, count = 0;
-  for (const v of values) {
-    if (v > -1e99) {
-      if (v < min) min = v;
-      if (v > max) max = v;
-      sum += v;
-      count++;
-    }
-  }
-  const mean = sum / count;
+  const { min, max, mean, count } = computeStats(values);
   const range = max - min || 1;
 
   document.getElementById('gv-min').textContent   = fmtNum(min, 3) + ' ' + p.units;
@@ -544,7 +497,7 @@ async function showGridView(shortName) {
   for (let i = 0, n = values.length; i < n; i++) {
     const v = values[i];
     const off = i * 4;
-    if (v <= -1e99) {
+    if (v <= MISSING_VALUE) {
       // Missing value: transparent grey
       px[off] = px[off+1] = px[off+2] = 180;
       px[off+3] = 100;

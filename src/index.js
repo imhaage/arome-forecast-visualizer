@@ -5,6 +5,7 @@
  */
 
 export {
+    MISSING_VALUE,
     decodeGRIB2,
     parseGRIB2Header,
     iterateGRIB2Messages,
@@ -16,3 +17,10 @@ export {
     parseSection6,
 } from './decoder.js';
 export { lookupParameter, PARAMETERS } from './parameters.js';
+export { computeStats } from './stats.js';
+export {
+    CENTRES, DISCIPLINES, REF_TIME_SIGNIFICANCE, TYPE_OF_DATA,
+    TYPE_OF_LEVEL, TIME_UNIT, GENERATING_PROCESS,
+    DATA_REPR_TEMPLATES, SCAN_MODE_BITS,
+    fmtRefTime, fmtLevel, fmtForecast, fmtScanMode,
+} from './wmo-tables.js';

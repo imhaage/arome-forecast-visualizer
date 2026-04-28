@@ -30,6 +30,9 @@
 import { ccsdsDecodeBuffer, AEC_FLAGS_LE } from './wasm/ccsds-loader.js';
 import { lookupParameter } from './parameters.js';
 
+/** Sentinel written into the values array for missing / bitmap-masked grid points. */
+export const MISSING_VALUE = -1e100;
+
 // ─── Byte helpers ─────────────────────────────────────────────────────────────
 
 const u8  = (d, i) => d[i];
@@ -438,6 +441,27 @@ function readBits(data, bitPos, nBits) {
     return value >>> 0;
 }
 
+// ─── Sections helper ─────────────────────────────────────────────────────────
+
+const MISSING_PRODUCT = {
+    shortName: 'unknown', name: 'Unknown', units: 'unknown',
+    pdtNumber: 255, parameterCategory: 255, parameterNumber: 255,
+};
+
+/**
+ * Parse Sections 1, 3 and 4 from an already-walked GRIB2 message.
+ * Centralises the repeated ternary pattern used by decodeGRIB2,
+ * parseGRIB2Header and iterateGRIB2Messages.
+ */
+function parseHeaderSections(data, walked) {
+    const { sections: secs, discipline } = walked;
+    return {
+        s1: secs[1] ? parseSection1(data, secs[1].dataStart) : {},
+        s3: secs[3] ? parseSection3(data, secs[3].dataStart) : {},
+        s4: secs[4] ? parseSection4(data, secs[4].dataStart, discipline) : { ...MISSING_PRODUCT },
+    };
+}
+
 // ─── Main decode function ─────────────────────────────────────────────────────
 
 /**
@@ -457,20 +481,9 @@ export async function decodeGRIB2(buffer) {
     const data = buffer instanceof Uint8Array ? buffer : new Uint8Array(buffer);
 
     // 1. Walk sections
-    const walked  = walkSections(data);
-    const secs    = walked.sections;
-
-    // 2. Section 1 — identification
-    const s1 = secs[1] ? parseSection1(data, secs[1].dataStart) : {};
-
-    // 3. Section 3 — grid definition
-    const s3 = secs[3] ? parseSection3(data, secs[3].dataStart) : {};
-
-    // 3b. Section 4 — product definition (variable identity)
-    const s4 = secs[4]
-        ? parseSection4(data, secs[4].dataStart, walked.discipline)
-        : { shortName: 'unknown', name: 'Unknown', units: 'unknown',
-            pdtNumber: 255, parameterCategory: 255, parameterNumber: 255 };
+    const walked       = walkSections(data);
+    const secs         = walked.sections;
+    const { s1, s3, s4 } = parseHeaderSections(data, walked);
 
     // 4. Section 5 — data representation
     if (!secs[5]) throw new Error('Section 5 (Data Representation) not found');
@@ -485,7 +498,7 @@ export async function decodeGRIB2(buffer) {
         : { hasBitmap: false, bitmap: null };
 
     // Output arrays
-    const values = new Float64Array(totalPoints).fill(-1e100);
+    const values = new Float64Array(totalPoints).fill(MISSING_VALUE);
     const bitmap = s6.bitmap;
 
     // Section 7 data boundaries
@@ -575,15 +588,10 @@ export async function decodeGRIB2(buffer) {
  * @returns {{ header, product, grid, dataOffset, dataLength, messageLength }}
  */
 export function parseGRIB2Header(buffer) {
-    const data    = buffer instanceof Uint8Array ? buffer : new Uint8Array(buffer);
-    const walked  = walkSections(data);
-    const secs    = walked.sections;
-    const s1      = secs[1] ? parseSection1(data, secs[1].dataStart) : {};
-    const s3      = secs[3] ? parseSection3(data, secs[3].dataStart) : {};
-    const s4      = secs[4]
-        ? parseSection4(data, secs[4].dataStart, walked.discipline)
-        : { shortName: 'unknown', name: 'Unknown', units: 'unknown' };
-    const s7      = secs[7];
+    const data           = buffer instanceof Uint8Array ? buffer : new Uint8Array(buffer);
+    const walked         = walkSections(data);
+    const { s1, s3, s4 } = parseHeaderSections(data, walked);
+    const s7             = walked.sections[7];
 
     return {
         header:      { ...s1, discipline: walked.discipline, messageLength: walked.messageLength },
@@ -639,21 +647,15 @@ export function* iterateGRIB2Messages(buffer) {
         // required by the tmpl === 254 DataView path in decodeGRIB2().
         const msgData = data.slice(offset, offset + msgLen);
 
-        const walked = walkSections(msgData);
-        const secs   = walked.sections;
+        const walked         = walkSections(msgData);
+        const { s1, s3, s4 } = parseHeaderSections(msgData, walked);
 
         yield {
             index,
             buffer:  msgData,
-            header:  {
-                ...( secs[1] ? parseSection1(msgData, secs[1].dataStart) : {} ),
-                discipline:    walked.discipline,
-                messageLength: walked.messageLength,
-            },
-            product: secs[4]
-                ? parseSection4(msgData, secs[4].dataStart, walked.discipline)
-                : { shortName: 'unknown', name: 'Unknown', units: 'unknown' },
-            grid:    secs[3] ? parseSection3(msgData, secs[3].dataStart) : {},
+            header:  { ...s1, discipline: walked.discipline, messageLength: walked.messageLength },
+            product: s4,
+            grid:    s3,
         };
 
         offset += msgLen;

@@ -25,7 +25,8 @@ import { readFileSync }      from 'node:fs';
 import { basename }          from 'node:path';
 import { pipeline }          from 'node:stream/promises';
 import { Readable }          from 'node:stream';
-import { decodeGRIB2, iterateGRIB2Messages } from './src/decoder.js';
+import { decodeGRIB2, iterateGRIB2Messages, MISSING_VALUE } from './src/decoder.js';
+import { computeStats } from './src/stats.js';
 
 // ─── Args ─────────────────────────────────────────────────────────────────────
 
@@ -52,6 +53,17 @@ const { inputPath, outputPath, variable } = parseArgs(process.argv);
 if (!inputPath) {
     console.error('Usage: node grib2-export.js <file.grib2> [--variable <shortName>] [output.csv]');
     process.exit(1);
+}
+
+// ─── Helpers ─────────────────────────────────────────────────────────────────
+
+function indexToLatLon(idx, grid) {
+    const row = Math.floor(idx / grid.ni);
+    const col = idx % grid.ni;
+    return {
+        lat: (grid.latitudeOfFirstPoint  - row * grid.dj).toFixed(6),
+        lon: (grid.longitudeOfFirstPoint + col * grid.di).toFixed(6),
+    };
 }
 
 // ─── Read file ────────────────────────────────────────────────────────────────
@@ -125,18 +137,7 @@ const decodeMs = Date.now() - t0;
 
 // ─── Stats ────────────────────────────────────────────────────────────────────
 
-let min = Infinity, max = -Infinity, sum = 0, sum2 = 0, count = 0;
-for (const v of values) {
-    if (v > -1e99) {
-        if (v < min) min = v;
-        if (v > max) max = v;
-        sum  += v;
-        sum2 += v * v;
-        count++;
-    }
-}
-const mean   = sum / count;
-const stddev = Math.sqrt(sum2 / count - mean * mean);
+const { min, max, mean, stddev, count } = computeStats(values);
 
 // ─── Terminal report ──────────────────────────────────────────────────────────
 
@@ -185,11 +186,8 @@ console.log(`${'lat'.padStart(11)} ${'lon'.padStart(11)} ${'value'.padStart(14)}
 console.log(`${'─'.repeat(11)} ${'─'.repeat(11)} ${'─'.repeat(14)}`);
 let shown = 0;
 for (let idx = 0; idx < values.length && shown < 10; idx++) {
-    if (values[idx] <= -1e99) continue;
-    const row = Math.floor(idx / grid.ni);
-    const col = idx % grid.ni;
-    const lat = (grid.latitudeOfFirstPoint  - row * grid.dj).toFixed(6);
-    const lon = (grid.longitudeOfFirstPoint + col * grid.di).toFixed(6);
+    if (values[idx] <= MISSING_VALUE) continue;
+    const { lat, lon } = indexToLatLon(idx, grid);
     console.log(`${lat.padStart(11)} ${lon.padStart(11)} ${values[idx].toFixed(6).padStart(14)}`);
     shown++;
 }
@@ -218,12 +216,9 @@ let buf64   = '';
 let written = 0;
 
 for (let idx = 0; idx < values.length; idx++) {
-    if (values[idx] <= -1e99) continue;
+    if (values[idx] <= MISSING_VALUE) continue;
 
-    const row = Math.floor(idx / grid.ni);
-    const col = idx % grid.ni;
-    const lat = (grid.latitudeOfFirstPoint  - row * grid.dj).toFixed(6);
-    const lon = (grid.longitudeOfFirstPoint + col * grid.di).toFixed(6);
+    const { lat, lon } = indexToLatLon(idx, grid);
     buf64 += `${lat},${lon},${values[idx].toFixed(6)}\n`;
     written++;
 
