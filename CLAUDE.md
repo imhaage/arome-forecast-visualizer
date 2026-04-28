@@ -1,23 +1,26 @@
-# CLAUDE.md - GRIB2 Decoder
+# CLAUDE.md — GRIB2 Decoder
 
 ## Projet
 
-Décodeur GRIB2 (édition 2) en JavaScript pur, compatible navigateur. Basé sur la spec WMO FM-92 GRIB Edition 2 et le code source de la bibliothèque eccodes de l'ECMWF.
+Décodeur GRIB2 (édition 2) en JavaScript pur, compatible navigateur et Node.js.
+Basé sur la spec WMO FM-92 GRIB Edition 2. Décompression CCSDS via WebAssembly (libaec).
 
-**Objectif:** Produire un décodeur fonctionnel avec tests passant et démo HTML, capable de décoder le fichier de test `test/arome__001__SP1__01H__2026-04-25T03_00_00Z.grib2` (~24 MB).
+**Fichier de test :** `test/arome__001__SP1__01H__2026-04-25T03_00_00Z.grib2` (~24 MB, AROME, Météo-France)
 
-## Documentation modulaire
+**État :** Entièrement fonctionnel — 93 tests passent, décodage CCSDS validé sur données réelles.
 
-Ce projet utilise une structure de documentation modulaire :
+## Structure de la documentation
 
-- `docs/architecture.md` - Architecture détaillée du décodeur
-- `docs/external-resources.md` - Ressources externes et spécifications WMO
-- `docs/tasks.md` - Tâches restantes et suivi des progressions
+- `docs/decoder.md` — Modules src/, format GRIB2, API publique
+- `docs/frontend.md` — Application web (index.html)
+- `docs/cli.md` — Outils CLI et scripts npm
+- `docs/external-resources.md` — Spécifications WMO et références externes
 
-## Ressources externes
+## Commandes utiles
 
-Voir `docs/external-resources.md` pour les spécifications WMO et ressources externes.
-
-## Tâches restantes
-
-Voir `docs/tasks.md` pour la liste complète des tâches à effectuer.
+```bash
+npm test                                          # 93 tests
+npm run info -- <file.grib2>                      # rapport métadonnées
+npm run export -- <file.grib2> --variable <name>  # export CSV
+npm run serve                                     # serveur local
+```
