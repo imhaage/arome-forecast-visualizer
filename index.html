@@ -391,9 +391,22 @@ function code(table, v) { return table[v] ? `${table[v]} (${v})` : String(v); }
 
 // ── Colormap (chroma-js) ──────────────────────────────────────────────────────
 
+// Plasma, Magma, Inferno are absent from chroma.brewer in the ESM build.
+// Viridis and all ColorBrewer names (Spectral, RdBu, Blues…) are in chroma.brewer.
+const CUSTOM_SCALES = {
+  Plasma:  ['#0d0887', '#7e03a8', '#cb4679', '#f89441', '#f0f921'],
+  Magma:   ['#000004', '#51127c', '#b73779', '#fc8961', '#fcfdbf'],
+  Inferno: ['#000004', '#420a68', '#932667', '#dd513a', '#fcffa4'],
+};
+
+// Resolve a palette name to a chroma scale, using chroma.brewer when available.
+function makeScale(paletteName) {
+  return chroma.scale(CUSTOM_SCALES[paletteName] ?? chroma.brewer[paletteName]);
+}
+
 // Build a 256-entry RGB lookup table — avoids calling chroma for every pixel.
 function buildLUT(paletteName) {
-  const sc  = chroma.scale(paletteName);
+  const sc  = makeScale(paletteName);
   const lut = new Uint8Array(256 * 3);
   for (let i = 0; i < 256; i++) {
     const [r, g, b] = sc(i / 255).rgb();
@@ -429,7 +442,7 @@ function renderHeatmap() {
   }
   ctx.putImageData(img, 0, 0);
 
-  const sc    = chroma.scale(currentPalette);
+  const sc    = makeScale(currentPalette);
   const stops = Array.from({length: 8}, (_, i) => sc(i / 7).css()).join(', ');
   document.getElementById('cs-bar').style.background =
     `linear-gradient(to right, ${stops})`;
