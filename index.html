@@ -25,7 +25,11 @@
     header h1 { font-size: 1.15rem; font-weight: 600; letter-spacing: .02em; }
     header span { font-size: .8rem; color: #8b919e; font-weight: 400; }
 
-    main { max-width: 960px; margin: 0 auto; padding: 32px 24px; }
+    /* ══════════════════════════════════════════════════════
+       HOME VIEW
+    ══════════════════════════════════════════════════════ */
+
+    #view-home main { max-width: 960px; margin: 0 auto; padding: 32px 24px; }
 
     /* ── Drop zone ── */
     #drop-zone {
@@ -41,10 +45,7 @@
       border-color: #3b82f6;
       background: #eff6ff;
     }
-    #drop-zone .icon {
-      font-size: 2.5rem;
-      margin-bottom: 12px;
-    }
+    #drop-zone .icon { font-size: 2.5rem; margin-bottom: 12px; }
     #drop-zone p { color: #555e6d; font-size: .95rem; line-height: 1.6; }
     #drop-zone p strong { color: #1a1d23; }
     #drop-zone small { color: #8b919e; font-size: .8rem; }
@@ -68,7 +69,6 @@
       border: 1px solid #e2e6ec;
       border-radius: 10px;
       padding: 18px 22px;
-      display: flex;
       gap: 32px;
       flex-wrap: wrap;
       align-items: center;
@@ -98,12 +98,7 @@
     }
     .card:hover { box-shadow: 0 4px 16px rgba(0,0,0,.08); }
 
-    .card-header {
-      display: flex;
-      align-items: center;
-      gap: 10px;
-      margin-bottom: 14px;
-    }
+    .card-header { display: flex; align-items: center; gap: 10px; margin-bottom: 14px; }
     .badge {
       background: #1a1d23;
       color: #fff;
@@ -116,7 +111,6 @@
       white-space: nowrap;
     }
     .card-title { font-size: .95rem; font-weight: 600; line-height: 1.3; }
-    .card-subtitle { font-size: .8rem; color: #8b919e; margin-top: 1px; }
 
     .card-rows { display: flex; flex-direction: column; gap: 7px; }
     .card-row {
@@ -129,6 +123,103 @@
     .card-row .key { color: #8b919e; white-space: nowrap; flex-shrink: 0; }
     .card-row .val { font-weight: 500; text-align: right; word-break: break-word; }
     .card-divider { border: none; border-top: 1px solid #f0f1f4; margin: 10px 0; }
+
+    .btn-grid {
+      margin-top: 16px;
+      width: 100%;
+      padding: 9px 0;
+      background: #1a1d23;
+      color: #fff;
+      border: none;
+      border-radius: 7px;
+      font-size: .82rem;
+      font-weight: 500;
+      cursor: pointer;
+      letter-spacing: .02em;
+      transition: background .15s;
+    }
+    .btn-grid:hover { background: #353b4a; }
+
+    /* ══════════════════════════════════════════════════════
+       GRID VIEW
+    ══════════════════════════════════════════════════════ */
+
+    #view-grid { display: none; }
+    #view-grid main { max-width: 1100px; margin: 0 auto; padding: 28px 24px; }
+
+    /* ── Toolbar ── */
+    #grid-toolbar {
+      display: flex;
+      align-items: center;
+      gap: 16px;
+      margin-bottom: 22px;
+      flex-wrap: wrap;
+    }
+
+    .btn-back {
+      background: #fff;
+      border: 1px solid #c5cad4;
+      border-radius: 7px;
+      padding: 7px 14px;
+      cursor: pointer;
+      font-size: .84rem;
+      color: #555e6d;
+      flex-shrink: 0;
+      transition: background .12s, border-color .12s;
+    }
+    .btn-back:hover { background: #f0f1f4; border-color: #8b919e; }
+
+    #gv-meta { display: flex; align-items: center; gap: 10px; }
+    #gv-name { font-size: .95rem; font-weight: 600; }
+    #gv-sub  { font-size: .78rem; color: #8b919e; margin-top: 2px; }
+
+    #grid-stats {
+      display: flex;
+      gap: 28px;
+      margin-left: auto;
+      flex-wrap: wrap;
+    }
+    .stat-item { display: flex; flex-direction: column; gap: 1px; }
+    .stat-label { font-size: .68rem; text-transform: uppercase; letter-spacing: .07em; color: #8b919e; }
+    .stat-value { font-size: .88rem; font-weight: 600; font-variant-numeric: tabular-nums; }
+
+    /* ── Canvas area ── */
+    #grid-canvas-wrap {
+      background: #dde0e8;
+      border-radius: 10px;
+      overflow: hidden;
+      line-height: 0;
+    }
+
+    #grid-canvas {
+      display: block;
+      max-width: 100%;
+      height: auto;
+    }
+
+    #grid-loading {
+      padding: 100px 0;
+      text-align: center;
+      color: #8b919e;
+      font-size: .9rem;
+    }
+
+    /* ── Color scale ── */
+    #colorscale {
+      display: none;
+      align-items: center;
+      gap: 10px;
+      margin-top: 12px;
+      font-size: .76rem;
+      color: #555e6d;
+      font-variant-numeric: tabular-nums;
+    }
+    #cs-bar {
+      flex: 1;
+      height: 10px;
+      border-radius: 5px;
+    }
+    #cs-unit { color: #8b919e; margin-left: 4px; }
   </style>
 </head>
 <body>
@@ -138,49 +229,106 @@
   <span>browser-native · no server required</span>
 </header>
 
-<main>
-  <div id="drop-zone" role="button" tabindex="0" aria-label="Upload a GRIB2 file">
-    <div class="icon">🌐</div>
-    <p><strong>Drop a GRIB2 file here</strong><br>or click to select</p>
-    <br>
-    <small>.grib2 / .grib</small>
-    <input type="file" id="file-input" accept=".grib2,.grib">
-  </div>
-  <div id="status"></div>
+<!-- ══════════════════════════════════════════════════════
+     HOME VIEW
+══════════════════════════════════════════════════════ -->
+<div id="view-home">
+  <main>
+    <div id="drop-zone" role="button" tabindex="0" aria-label="Upload a GRIB2 file">
+      <div class="icon">🌐</div>
+      <p><strong>Drop a GRIB2 file here</strong><br>or click to select</p>
+      <br>
+      <small>.grib2 / .grib</small>
+      <input type="file" id="file-input" accept=".grib2,.grib">
+    </div>
+    <div id="status"></div>
 
-  <div id="file-summary">
-    <div class="meta-item">
-      <span class="meta-label">File</span>
-      <span class="meta-value" id="s-name">—</span>
+    <div id="file-summary">
+      <div class="meta-item">
+        <span class="meta-label">File</span>
+        <span class="meta-value" id="s-name">—</span>
+      </div>
+      <div class="meta-item">
+        <span class="meta-label">Size</span>
+        <span class="meta-value" id="s-size">—</span>
+      </div>
+      <div class="meta-item">
+        <span class="meta-label">Messages</span>
+        <span class="meta-value" id="s-count">—</span>
+      </div>
+      <div class="meta-item">
+        <span class="meta-label">Centre</span>
+        <span class="meta-value" id="s-centre">—</span>
+      </div>
+      <div class="meta-item">
+        <span class="meta-label">Reference time</span>
+        <span class="meta-value" id="s-reftime">—</span>
+      </div>
     </div>
-    <div class="meta-item">
-      <span class="meta-label">Size</span>
-      <span class="meta-value" id="s-size">—</span>
-    </div>
-    <div class="meta-item">
-      <span class="meta-label">Messages</span>
-      <span class="meta-value" id="s-count">—</span>
-    </div>
-    <div class="meta-item">
-      <span class="meta-label">Centre</span>
-      <span class="meta-value" id="s-centre">—</span>
-    </div>
-    <div class="meta-item">
-      <span class="meta-label">Reference time</span>
-      <span class="meta-value" id="s-reftime">—</span>
-    </div>
-  </div>
 
-  <div id="results">
-    <h2>Variables</h2>
-    <div class="cards" id="cards"></div>
-  </div>
-</main>
+    <div id="results">
+      <h2>Variables</h2>
+      <div class="cards" id="cards"></div>
+    </div>
+  </main>
+</div>
+
+<!-- ══════════════════════════════════════════════════════
+     GRID VIEW
+══════════════════════════════════════════════════════ -->
+<div id="view-grid">
+  <main>
+    <div id="grid-toolbar">
+      <button class="btn-back" id="back-btn">← Variables</button>
+      <div id="gv-meta">
+        <span class="badge" id="gv-badge"></span>
+        <div>
+          <div id="gv-name"></div>
+          <div id="gv-sub"></div>
+        </div>
+      </div>
+      <div id="grid-stats">
+        <div class="stat-item">
+          <span class="stat-label">Min</span>
+          <span class="stat-value" id="gv-min">—</span>
+        </div>
+        <div class="stat-item">
+          <span class="stat-label">Max</span>
+          <span class="stat-value" id="gv-max">—</span>
+        </div>
+        <div class="stat-item">
+          <span class="stat-label">Mean</span>
+          <span class="stat-value" id="gv-mean">—</span>
+        </div>
+        <div class="stat-item">
+          <span class="stat-label">Valid pts</span>
+          <span class="stat-value" id="gv-valid">—</span>
+        </div>
+      </div>
+    </div>
+
+    <div id="grid-canvas-wrap">
+      <div id="grid-loading">Decoding…</div>
+      <canvas id="grid-canvas"></canvas>
+    </div>
+
+    <div id="colorscale">
+      <span id="cs-min"></span>
+      <div id="cs-bar"></div>
+      <span id="cs-max"></span>
+      <span id="cs-unit"></span>
+    </div>
+  </main>
+</div>
 
 <script type="module">
-import { iterateGRIB2Messages } from './src/index.js';
+import { iterateGRIB2Messages, decodeGRIB2 } from './src/index.js';
 
-// ── WMO code tables (subset) ──────────────────────────────────────────────────
+// ── State ─────────────────────────────────────────────────────────────────────
+// Kept in memory: no cross-page serialization needed.
+let fileState = null; // { messages: Array }
+
+// ── WMO code tables ───────────────────────────────────────────────────────────
 
 const CENTRES = {
   7: 'NCEP', 54: 'CMC', 74: 'Met Office', 84: 'Toulouse',
@@ -188,24 +336,14 @@ const CENTRES = {
 };
 
 const TYPE_OF_LEVEL = {
-  1:   'Ground surface',
-  2:   'Cloud base',
-  3:   'Cloud top',
-  6:   'Maximum wind',
-  7:   'Tropopause',
-  8:   'Top of atmosphere',
-  10:  'Sea surface',
-  100: 'Isobaric surface (Pa)',
-  101: 'Mean sea level',
-  102: 'Specific altitude above MSL (m)',
-  103: 'Specific height above ground (m)',
-  104: 'Sigma level',
-  105: 'Hybrid level',
-  106: 'Depth below land surface (m)',
-  107: 'Isentropic level (K)',
-  108: 'Pressure difference from ground (Pa)',
-  200: 'Entire atmosphere',
-  204: 'Highest tropospheric freezing level',
+  1: 'Ground surface', 2: 'Cloud base', 3: 'Cloud top',
+  6: 'Maximum wind', 7: 'Tropopause', 8: 'Top of atmosphere',
+  10: 'Sea surface',
+  100: 'Isobaric surface (Pa)', 101: 'Mean sea level',
+  102: 'Specific altitude above MSL (m)', 103: 'Specific height above ground (m)',
+  104: 'Sigma level', 105: 'Hybrid level', 106: 'Depth below land surface (m)',
+  107: 'Isentropic level (K)', 108: 'Pressure difference from ground (Pa)',
+  200: 'Entire atmosphere', 204: 'Highest tropospheric freezing level',
 };
 
 const TIME_UNIT = { 0: 'min', 1: 'h', 2: 'd', 10: '3h', 11: '6h', 12: '12h', 13: 's' };
@@ -217,94 +355,102 @@ const GENERATING_PROCESS = {
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
-function fmtSize(bytes) {
-  return bytes >= 1e6
-    ? (bytes / 1e6).toFixed(1) + ' MB'
-    : (bytes / 1e3).toFixed(0) + ' KB';
-}
+const fmtNum = (v, d = 4) => v.toFixed(d);
+const pad    = n => String(n).padStart(2, '0');
 
+function fmtSize(b) {
+  return b >= 1e6 ? (b / 1e6).toFixed(1) + ' MB' : (b / 1e3).toFixed(0) + ' KB';
+}
 function fmtRefTime(h) {
-  const pad = n => String(n).padStart(2, '0');
   return `${h.year}-${pad(h.month)}-${pad(h.day)} ${pad(h.hour)}:${pad(h.minute)} UTC`;
 }
-
 function fmtLevel(p) {
-  const label = TYPE_OF_LEVEL[p.typeOfFirstFixedSurface] ?? `type ${p.typeOfFirstFixedSurface}`;
   if (p.typeOfFirstFixedSurface === 103) return `${p.levelValue} m above ground`;
   if (p.typeOfFirstFixedSurface === 100) return `${p.levelValue} Pa`;
   if (p.typeOfFirstFixedSurface === 1)   return 'Ground surface';
   if (p.typeOfFirstFixedSurface === 10)  return 'Sea surface';
-  return `${label}${p.levelValue ? ' · ' + p.levelValue : ''}`;
+  const lbl = TYPE_OF_LEVEL[p.typeOfFirstFixedSurface] ?? `type ${p.typeOfFirstFixedSurface}`;
+  return `${lbl}${p.levelValue ? ' · ' + p.levelValue : ''}`;
 }
-
 function fmtForecast(p) {
-  const unit = TIME_UNIT[p.timeUnit] ?? `unit ${p.timeUnit}`;
-  return `+${p.forecastTime} ${unit}`;
+  return `+${p.forecastTime} ${TIME_UNIT[p.timeUnit] ?? `unit ${p.timeUnit}`}`;
 }
-
 function fmtGrid(g) {
   return `${g.ni} × ${g.nj} pts · `
     + `${g.latitudeOfLastPoint}°–${g.latitudeOfFirstPoint}°N · `
     + `${g.longitudeOfFirstPoint}°–${g.longitudeOfLastPoint}°E`;
 }
+function code(table, v) { return table[v] ? `${table[v]} (${v})` : String(v); }
 
-function fmtResolution(g) {
-  return `${g.di}° × ${g.dj}°`;
+// ── Plasma colormap ───────────────────────────────────────────────────────────
+// 5-stop approximation of matplotlib's plasma palette.
+const PLASMA = [
+  [13,  8,  135],
+  [126, 3,  168],
+  [203, 70, 121],
+  [248, 149, 64],
+  [240, 249,  33],
+];
+
+function plasma(t) {
+  const n = PLASMA.length - 1;
+  const i = Math.min(Math.floor(t * n), n - 1);
+  const f = t * n - i;
+  const a = PLASMA[i], b = PLASMA[i + 1];
+  return [
+    Math.round(a[0] + f * (b[0] - a[0])),
+    Math.round(a[1] + f * (b[1] - a[1])),
+    Math.round(a[2] + f * (b[2] - a[2])),
+  ];
 }
 
-function code(table, v) {
-  return table[v] ? `${table[v]} (${v})` : String(v);
-}
+// CSS gradient matching the same stops (for the legend bar)
+const PLASMA_CSS = `linear-gradient(to right, ${
+  PLASMA.map(([r,g,b]) => `rgb(${r},${g},${b})`).join(', ')
+})`;
 
 // ── Card builder ──────────────────────────────────────────────────────────────
 
 function buildCard(msg) {
-  const { index, product: p, header: h, grid: g } = msg;
-
+  const { index, product: p, grid: g } = msg;
   const row = (key, val) => `
     <div class="card-row">
       <span class="key">${key}</span>
       <span class="val">${val}</span>
     </div>`;
-
   return `
     <div class="card">
       <div class="card-header">
         <span class="badge">${p.shortName}</span>
-        <div>
-          <div class="card-title">${p.name}</div>
-        </div>
+        <div><div class="card-title">${p.name}</div></div>
       </div>
       <div class="card-rows">
-        ${row('Unit',     p.units)}
-        ${row('Level',    fmtLevel(p))}
-        ${row('Forecast', fmtForecast(p))}
-        ${row('Process',  code(GENERATING_PROCESS, p.typeOfGeneratingProcess))}
+        ${row('Unit',       p.units)}
+        ${row('Level',      fmtLevel(p))}
+        ${row('Forecast',   fmtForecast(p))}
+        ${row('Process',    code(GENERATING_PROCESS, p.typeOfGeneratingProcess))}
         <hr class="card-divider">
-        ${row('Grid',     fmtGrid(g))}
-        ${row('Resolution', fmtResolution(g))}
-        ${row('Message #', index)}
+        ${row('Grid',       fmtGrid(g))}
+        ${row('Resolution', `${g.di}° × ${g.dj}°`)}
+        ${row('Message #',  index)}
       </div>
+      <button class="btn-grid" data-var="${p.shortName}">View grid</button>
     </div>`;
 }
 
-// ── Core: read file and render ────────────────────────────────────────────────
+// ── Home view: process uploaded file ─────────────────────────────────────────
 
 function processFile(file) {
   setStatus('Reading file…');
-
   const reader = new FileReader();
   reader.onload = (e) => {
     try {
       const buffer = e.target.result;
       const messages = [...iterateGRIB2Messages(buffer)];
+      if (messages.length === 0) { setStatus('No GRIB2 messages found.', true); return; }
 
-      if (messages.length === 0) {
-        setStatus('No GRIB2 messages found in this file.', true);
-        return;
-      }
+      fileState = { messages };
 
-      // File summary
       const first = messages[0];
       document.getElementById('s-name').textContent    = file.name;
       document.getElementById('s-size').textContent    = fmtSize(file.size);
@@ -312,18 +458,12 @@ function processFile(file) {
       document.getElementById('s-centre').textContent  =
         CENTRES[first.header.centre] ?? `Centre ${first.header.centre}`;
       document.getElementById('s-reftime').textContent = fmtRefTime(first.header);
-
       document.getElementById('file-summary').style.display = 'flex';
 
-      // Cards
-      document.getElementById('cards').innerHTML =
-        messages.map(buildCard).join('');
+      document.getElementById('cards').innerHTML = messages.map(buildCard).join('');
       document.getElementById('results').style.display = 'block';
-
       setStatus('');
-    } catch (err) {
-      setStatus('Error: ' + err.message, true);
-    }
+    } catch (err) { setStatus('Error: ' + err.message, true); }
   };
   reader.onerror = () => setStatus('Could not read file.', true);
   reader.readAsArrayBuffer(file);
@@ -335,28 +475,144 @@ function setStatus(msg, isError = false) {
   el.className = isError ? 'error' : '';
 }
 
+// ── Grid view: decode + render ────────────────────────────────────────────────
+
+async function showGridView(shortName) {
+  if (!fileState) { location.hash = ''; return; }
+
+  const msg = fileState.messages.find(m => m.product.shortName === shortName);
+  if (!msg) { location.hash = ''; return; }
+
+  const p = msg.product;
+  const g = msg.grid;
+
+  // Populate toolbar
+  document.getElementById('gv-badge').textContent = p.shortName;
+  document.getElementById('gv-name').textContent  = p.name;
+  document.getElementById('gv-sub').textContent   =
+    `${fmtLevel(p)} · ${fmtForecast(p)}`;
+
+  // Reset stats + show loading
+  for (const id of ['gv-min','gv-max','gv-mean','gv-valid']) {
+    document.getElementById(id).textContent = '—';
+  }
+  document.getElementById('grid-loading').style.display = 'block';
+  const canvas = document.getElementById('grid-canvas');
+  canvas.style.display = 'none';
+  document.getElementById('colorscale').style.display = 'none';
+
+  // Switch view
+  document.getElementById('view-home').style.display = 'none';
+  document.getElementById('view-grid').style.display  = 'block';
+
+  // Decode (WASM)
+  let decoded;
+  try {
+    decoded = await decodeGRIB2(msg.buffer);
+  } catch (err) {
+    document.getElementById('grid-loading').textContent = 'Decode error: ' + err.message;
+    return;
+  }
+
+  const { values, grid: gr } = decoded;
+
+  // Stats
+  let min = Infinity, max = -Infinity, sum = 0, count = 0;
+  for (const v of values) {
+    if (v > -1e99) {
+      if (v < min) min = v;
+      if (v > max) max = v;
+      sum += v;
+      count++;
+    }
+  }
+  const mean = sum / count;
+  const range = max - min || 1;
+
+  document.getElementById('gv-min').textContent   = fmtNum(min, 3) + ' ' + p.units;
+  document.getElementById('gv-max').textContent   = fmtNum(max, 3) + ' ' + p.units;
+  document.getElementById('gv-mean').textContent  = fmtNum(mean, 3) + ' ' + p.units;
+  document.getElementById('gv-valid').textContent = count.toLocaleString();
+
+  // Render heatmap on canvas
+  canvas.width  = gr.ni;
+  canvas.height = gr.nj;
+  const ctx       = canvas.getContext('2d');
+  const imageData = ctx.createImageData(gr.ni, gr.nj);
+  const px        = imageData.data;
+
+  for (let i = 0, n = values.length; i < n; i++) {
+    const v = values[i];
+    const off = i * 4;
+    if (v <= -1e99) {
+      // Missing value: transparent grey
+      px[off] = px[off+1] = px[off+2] = 180;
+      px[off+3] = 100;
+    } else {
+      const [r, gb, b] = plasma((v - min) / range);
+      px[off]   = r;
+      px[off+1] = gb;
+      px[off+2] = b;
+      px[off+3] = 255;
+    }
+  }
+  ctx.putImageData(imageData, 0, 0);
+
+  // Show canvas + color scale
+  document.getElementById('grid-loading').style.display = 'none';
+  canvas.style.display = 'block';
+
+  document.getElementById('cs-min').textContent  = fmtNum(min, 2);
+  document.getElementById('cs-max').textContent  = fmtNum(max, 2);
+  document.getElementById('cs-unit').textContent = p.units;
+  document.getElementById('cs-bar').style.background = PLASMA_CSS;
+  document.getElementById('colorscale').style.display = 'flex';
+}
+
+// ── Router (hash-based) ───────────────────────────────────────────────────────
+
+function route() {
+  const hash = location.hash; // '#grid/t', '#grid/r', …
+  if (hash.startsWith('#grid/')) {
+    showGridView(decodeURIComponent(hash.slice(6)));
+  } else {
+    document.getElementById('view-grid').style.display  = 'none';
+    document.getElementById('view-home').style.display  = 'block';
+  }
+}
+
+window.addEventListener('hashchange', route);
+route(); // handle initial URL
+
 // ── Event wiring ──────────────────────────────────────────────────────────────
 
 const dropZone = document.getElementById('drop-zone');
 const fileInput = document.getElementById('file-input');
 
 dropZone.addEventListener('click', () => fileInput.click());
-dropZone.addEventListener('keydown', e => { if (e.key === 'Enter' || e.key === ' ') fileInput.click(); });
-
+dropZone.addEventListener('keydown', e => {
+  if (e.key === 'Enter' || e.key === ' ') fileInput.click();
+});
 fileInput.addEventListener('change', () => {
   if (fileInput.files[0]) processFile(fileInput.files[0]);
 });
-
-dropZone.addEventListener('dragover', e => {
-  e.preventDefault();
-  dropZone.classList.add('over');
-});
+dropZone.addEventListener('dragover', e => { e.preventDefault(); dropZone.classList.add('over'); });
 dropZone.addEventListener('dragleave', () => dropZone.classList.remove('over'));
 dropZone.addEventListener('drop', e => {
   e.preventDefault();
   dropZone.classList.remove('over');
-  const file = e.dataTransfer.files[0];
-  if (file) processFile(file);
+  if (e.dataTransfer.files[0]) processFile(e.dataTransfer.files[0]);
+});
+
+// Card → grid navigation (event delegation)
+document.getElementById('cards').addEventListener('click', e => {
+  const btn = e.target.closest('.btn-grid');
+  if (btn) location.hash = '#grid/' + encodeURIComponent(btn.dataset.var);
+});
+
+// Back button
+document.getElementById('back-btn').addEventListener('click', () => {
+  location.hash = '';
 });
 </script>
 
