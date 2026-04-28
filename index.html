@@ -176,7 +176,6 @@
     #grid-stats {
       display: flex;
       gap: 28px;
-      margin-left: auto;
       flex-wrap: wrap;
     }
     .stat-item { display: flex; flex-direction: column; gap: 1px; }
@@ -220,6 +219,27 @@
       border-radius: 5px;
     }
     #cs-unit { color: #8b919e; margin-left: 4px; }
+
+    /* ── Palette selector ── */
+    #palette-ctrl {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      font-size: .82rem;
+      color: #555e6d;
+      margin-left: auto;
+    }
+    #palette-select {
+      background: #fff;
+      border: 1px solid #c5cad4;
+      border-radius: 7px;
+      padding: 6px 10px;
+      font-size: .82rem;
+      color: #1a1d23;
+      cursor: pointer;
+      transition: border-color .12s;
+    }
+    #palette-select:hover { border-color: #8b919e; }
   </style>
 </head>
 <body>
@@ -305,6 +325,28 @@
           <span class="stat-value" id="gv-valid">—</span>
         </div>
       </div>
+      <div id="palette-ctrl">
+        <label for="palette-select">Palette</label>
+        <select id="palette-select">
+          <optgroup label="Perceptually uniform">
+            <option value="Plasma" selected>Plasma</option>
+            <option value="Viridis">Viridis</option>
+            <option value="Magma">Magma</option>
+            <option value="Inferno">Inferno</option>
+          </optgroup>
+          <optgroup label="Diverging">
+            <option value="Spectral">Spectral</option>
+            <option value="RdBu">RdBu</option>
+            <option value="RdYlBu">RdYlBu</option>
+          </optgroup>
+          <optgroup label="Sequential">
+            <option value="YlOrRd">YlOrRd</option>
+            <option value="OrRd">OrRd</option>
+            <option value="Blues">Blues</option>
+            <option value="YlGnBu">YlGnBu</option>
+          </optgroup>
+        </select>
+      </div>
     </div>
 
     <div id="grid-canvas-wrap">
@@ -322,13 +364,16 @@
 </div>
 
 <script type="module">
+import chroma from 'https://esm.sh/chroma-js@2.4.2';
 import { iterateGRIB2Messages, decodeGRIB2, MISSING_VALUE } from './src/index.js';
 import { computeStats } from './src/stats.js';
 import { CENTRES, GENERATING_PROCESS, fmtRefTime, fmtLevel, fmtForecast } from './src/wmo-tables.js';
 
 // ── State ─────────────────────────────────────────────────────────────────────
 // Kept in memory: no cross-page serialization needed.
-let fileState = null; // { messages: Array }
+let fileState      = null; // { messages: Array }
+let gridState      = null; // { values, min, range } — kept to re-render on palette change
+let currentPalette = 'Plasma';
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -344,32 +389,51 @@ function fmtGrid(g) {
 }
 function code(table, v) { return table[v] ? `${table[v]} (${v})` : String(v); }
 
-// ── Plasma colormap ───────────────────────────────────────────────────────────
-// 5-stop approximation of matplotlib's plasma palette.
-const PLASMA = [
-  [13,  8,  135],
-  [126, 3,  168],
-  [203, 70, 121],
-  [248, 149, 64],
-  [240, 249,  33],
-];
+// ── Colormap (chroma-js) ──────────────────────────────────────────────────────
 
-function plasma(t) {
-  const n = PLASMA.length - 1;
-  const i = Math.min(Math.floor(t * n), n - 1);
-  const f = t * n - i;
-  const a = PLASMA[i], b = PLASMA[i + 1];
-  return [
-    Math.round(a[0] + f * (b[0] - a[0])),
-    Math.round(a[1] + f * (b[1] - a[1])),
-    Math.round(a[2] + f * (b[2] - a[2])),
-  ];
+// Build a 256-entry RGB lookup table — avoids calling chroma for every pixel.
+function buildLUT(paletteName) {
+  const sc  = chroma.scale(paletteName);
+  const lut = new Uint8Array(256 * 3);
+  for (let i = 0; i < 256; i++) {
+    const [r, g, b] = sc(i / 255).rgb();
+    lut[i * 3]     = r;
+    lut[i * 3 + 1] = g;
+    lut[i * 3 + 2] = b;
+  }
+  return lut;
 }
 
-// CSS gradient matching the same stops (for the legend bar)
-const PLASMA_CSS = `linear-gradient(to right, ${
-  PLASMA.map(([r,g,b]) => `rgb(${r},${g},${b})`).join(', ')
-})`;
+// Re-render the canvas and update the legend bar using gridState + currentPalette.
+function renderHeatmap() {
+  const { values, min, range } = gridState;
+  const canvas = document.getElementById('grid-canvas');
+  const ctx    = canvas.getContext('2d');
+  const img    = ctx.createImageData(canvas.width, canvas.height);
+  const px     = img.data;
+  const lut    = buildLUT(currentPalette);
+
+  for (let i = 0, n = values.length; i < n; i++) {
+    const v   = values[i];
+    const off = i * 4;
+    if (v <= MISSING_VALUE) {
+      px[off] = px[off+1] = px[off+2] = 180;
+      px[off+3] = 100;
+    } else {
+      const li = Math.min(Math.round(((v - min) / range) * 255), 255) * 3;
+      px[off]   = lut[li];
+      px[off+1] = lut[li + 1];
+      px[off+2] = lut[li + 2];
+      px[off+3] = 255;
+    }
+  }
+  ctx.putImageData(img, 0, 0);
+
+  const sc    = chroma.scale(currentPalette);
+  const stops = Array.from({length: 8}, (_, i) => sc(i / 7).css()).join(', ');
+  document.getElementById('cs-bar').style.background =
+    `linear-gradient(to right, ${stops})`;
+}
 
 // ── Card builder ──────────────────────────────────────────────────────────────
 
@@ -487,29 +551,13 @@ async function showGridView(shortName) {
   document.getElementById('gv-mean').textContent  = fmtNum(mean, 3) + ' ' + p.units;
   document.getElementById('gv-valid').textContent = count.toLocaleString();
 
-  // Render heatmap on canvas
+  // Store decoded data — needed to re-render on palette change without re-decoding
+  gridState = { values, min, range };
+
+  // Set canvas dimensions once, then render
   canvas.width  = gr.ni;
   canvas.height = gr.nj;
-  const ctx       = canvas.getContext('2d');
-  const imageData = ctx.createImageData(gr.ni, gr.nj);
-  const px        = imageData.data;
-
-  for (let i = 0, n = values.length; i < n; i++) {
-    const v = values[i];
-    const off = i * 4;
-    if (v <= MISSING_VALUE) {
-      // Missing value: transparent grey
-      px[off] = px[off+1] = px[off+2] = 180;
-      px[off+3] = 100;
-    } else {
-      const [r, gb, b] = plasma((v - min) / range);
-      px[off]   = r;
-      px[off+1] = gb;
-      px[off+2] = b;
-      px[off+3] = 255;
-    }
-  }
-  ctx.putImageData(imageData, 0, 0);
+  renderHeatmap();
 
   // Show canvas + color scale
   document.getElementById('grid-loading').style.display = 'none';
@@ -518,7 +566,6 @@ async function showGridView(shortName) {
   document.getElementById('cs-min').textContent  = fmtNum(min, 2);
   document.getElementById('cs-max').textContent  = fmtNum(max, 2);
   document.getElementById('cs-unit').textContent = p.units;
-  document.getElementById('cs-bar').style.background = PLASMA_CSS;
   document.getElementById('colorscale').style.display = 'flex';
 }
 
@@ -566,6 +613,12 @@ document.getElementById('cards').addEventListener('click', e => {
 // Back button
 document.getElementById('back-btn').addEventListener('click', () => {
   location.hash = '';
+});
+
+// Palette selector
+document.getElementById('palette-select').addEventListener('change', e => {
+  currentPalette = e.target.value;
+  if (gridState) renderHeatmap();
 });
 </script>
 
