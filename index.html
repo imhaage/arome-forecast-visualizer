@@ -1,95 +1,364 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>GRIB2 Decoder Demo</title>
-    <style>
-        body {
-            font-family: Arial, sans-serif;
-            max-width: 800px;
-            margin: 0 auto;
-            padding: 20px;
-        }
-        .container {
-            border: 1px solid #ccc;
-            padding: 20px;
-            border-radius: 5px;
-        }
-        .section {
-            margin-bottom: 20px;
-        }
-        button {
-            background-color: #4CAF50;
-            color: white;
-            padding: 10px 20px;
-            border: none;
-            border-radius: 4px;
-            cursor: pointer;
-            margin-right: 10px;
-        }
-        button:hover {
-            background-color: #45a049;
-        }
-        pre {
-            background-color: #f4f4f4;
-            padding: 10px;
-            border-radius: 4px;
-            overflow-x: auto;
-        }
-    </style>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>GRIB2 Decoder</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: system-ui, -apple-system, sans-serif;
+      background: #f5f6f8;
+      color: #1a1d23;
+      min-height: 100vh;
+    }
+
+    header {
+      background: #1a1d23;
+      color: #fff;
+      padding: 18px 32px;
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+    header h1 { font-size: 1.15rem; font-weight: 600; letter-spacing: .02em; }
+    header span { font-size: .8rem; color: #8b919e; font-weight: 400; }
+
+    main { max-width: 960px; margin: 0 auto; padding: 32px 24px; }
+
+    /* ── Drop zone ── */
+    #drop-zone {
+      border: 2px dashed #c5cad4;
+      border-radius: 12px;
+      background: #fff;
+      padding: 56px 32px;
+      text-align: center;
+      cursor: pointer;
+      transition: border-color .2s, background .2s;
+    }
+    #drop-zone:hover, #drop-zone.over {
+      border-color: #3b82f6;
+      background: #eff6ff;
+    }
+    #drop-zone .icon {
+      font-size: 2.5rem;
+      margin-bottom: 12px;
+    }
+    #drop-zone p { color: #555e6d; font-size: .95rem; line-height: 1.6; }
+    #drop-zone p strong { color: #1a1d23; }
+    #drop-zone small { color: #8b919e; font-size: .8rem; }
+    #file-input { display: none; }
+
+    /* ── Status ── */
+    #status {
+      margin-top: 16px;
+      font-size: .875rem;
+      color: #555e6d;
+      min-height: 1.4em;
+      text-align: center;
+    }
+    #status.error { color: #dc2626; }
+
+    /* ── File summary ── */
+    #file-summary {
+      display: none;
+      margin-top: 28px;
+      background: #fff;
+      border: 1px solid #e2e6ec;
+      border-radius: 10px;
+      padding: 18px 22px;
+      display: flex;
+      gap: 32px;
+      flex-wrap: wrap;
+      align-items: center;
+    }
+    #file-summary .meta-item { display: flex; flex-direction: column; gap: 2px; }
+    #file-summary .meta-label { font-size: .72rem; text-transform: uppercase;
+                                letter-spacing: .06em; color: #8b919e; }
+    #file-summary .meta-value { font-size: .95rem; font-weight: 600; }
+
+    /* ── Message cards ── */
+    #results { display: none; margin-top: 28px; }
+    #results h2 {
+      font-size: .78rem;
+      text-transform: uppercase;
+      letter-spacing: .07em;
+      color: #8b919e;
+      margin-bottom: 14px;
+    }
+    .cards { display: grid; grid-template-columns: repeat(auto-fill, minmax(440px, 1fr)); gap: 16px; }
+
+    .card {
+      background: #fff;
+      border: 1px solid #e2e6ec;
+      border-radius: 10px;
+      padding: 18px 20px;
+      transition: box-shadow .15s;
+    }
+    .card:hover { box-shadow: 0 4px 16px rgba(0,0,0,.08); }
+
+    .card-header {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      margin-bottom: 14px;
+    }
+    .badge {
+      background: #1a1d23;
+      color: #fff;
+      font-family: monospace;
+      font-size: .85rem;
+      font-weight: 700;
+      padding: 4px 10px;
+      border-radius: 6px;
+      letter-spacing: .03em;
+      white-space: nowrap;
+    }
+    .card-title { font-size: .95rem; font-weight: 600; line-height: 1.3; }
+    .card-subtitle { font-size: .8rem; color: #8b919e; margin-top: 1px; }
+
+    .card-rows { display: flex; flex-direction: column; gap: 7px; }
+    .card-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: baseline;
+      font-size: .82rem;
+      gap: 8px;
+    }
+    .card-row .key { color: #8b919e; white-space: nowrap; flex-shrink: 0; }
+    .card-row .val { font-weight: 500; text-align: right; word-break: break-word; }
+    .card-divider { border: none; border-top: 1px solid #f0f1f4; margin: 10px 0; }
+  </style>
 </head>
 <body>
-    <div class="container">
-        <h1>GRIB2 Decoder Demo</h1>
-        <p>This is a browser-compatible GRIB2 decoder implementation.</p>
 
-        <div class="section">
-            <h2>Test Section Parsing</h2>
-            <button onclick="testBasicDecoding()">Run Basic Test</button>
-            <div id="testResults"></div>
-        </div>
+<header>
+  <h1>GRIB2 Decoder</h1>
+  <span>browser-native · no server required</span>
+</header>
 
-        <div class="section">
-            <h2>Decoder Information</h2>
-            <p>This decoder implements:</p>
-            <ul>
-                <li>GRIB2 Edition 2 parsing</li>
-                <li>Section 0-7 parsing</li>
-                <li>Simple packing (type 0) support</li>
-                <li>Constant value packing (type 40)</li>
-                <li>IEEE 754 single precision packing (type 254)</li>
-                <li>Missing data handling (type 255)</li>
-            </ul>
-        </div>
+<main>
+  <div id="drop-zone" role="button" tabindex="0" aria-label="Upload a GRIB2 file">
+    <div class="icon">🌐</div>
+    <p><strong>Drop a GRIB2 file here</strong><br>or click to select</p>
+    <br>
+    <small>.grib2 / .grib</small>
+    <input type="file" id="file-input" accept=".grib2,.grib">
+  </div>
+  <div id="status"></div>
+
+  <div id="file-summary">
+    <div class="meta-item">
+      <span class="meta-label">File</span>
+      <span class="meta-value" id="s-name">—</span>
     </div>
+    <div class="meta-item">
+      <span class="meta-label">Size</span>
+      <span class="meta-value" id="s-size">—</span>
+    </div>
+    <div class="meta-item">
+      <span class="meta-label">Messages</span>
+      <span class="meta-value" id="s-count">—</span>
+    </div>
+    <div class="meta-item">
+      <span class="meta-label">Centre</span>
+      <span class="meta-value" id="s-centre">—</span>
+    </div>
+    <div class="meta-item">
+      <span class="meta-label">Reference time</span>
+      <span class="meta-value" id="s-reftime">—</span>
+    </div>
+  </div>
 
-    <script type="module">
-        import { decodeGRIB2, parseGRIB2Header } from './src/decoder.js';
+  <div id="results">
+    <h2>Variables</h2>
+    <div class="cards" id="cards"></div>
+  </div>
+</main>
 
-        function testBasicDecoding() {
-            const resultsDiv = document.getElementById('testResults');
-            try {
-                // Create a minimal valid GRIB2 structure for testing
-                const buffer = new ArrayBuffer(100);
-                const view = new Uint8Array(buffer);
+<script type="module">
+import { iterateGRIB2Messages } from './src/index.js';
 
-                // Write basic GRIB2 signature
-                view[0] = 0x47; // 'G'
-                view[1] = 0x52; // 'R'
-                view[2] = 0x49; // 'I'
-                view[3] = 0x42; // 'B'
-                view[4] = 0x02; // edition = 2
-                view[5] = 0x00; // length bytes (will be updated)
-                view[6] = 0x00;
-                view[7] = 0x08; // length
+// ── WMO code tables (subset) ──────────────────────────────────────────────────
 
-                const result = parseGRIB2Header(buffer);
-                resultsDiv.innerHTML = '<pre>Basic parsing works: ' + JSON.stringify(result, null, 2) + '</pre>';
-            } catch (error) {
-                resultsDiv.innerHTML = '<pre>Error: ' + error.message + '</pre>';
-            }
-        }
-    </script>
+const CENTRES = {
+  7: 'NCEP', 54: 'CMC', 74: 'Met Office', 84: 'Toulouse',
+  85: 'Météo-France', 96: 'ECMWF', 98: 'ECMWF', 255: 'Missing',
+};
+
+const TYPE_OF_LEVEL = {
+  1:   'Ground surface',
+  2:   'Cloud base',
+  3:   'Cloud top',
+  6:   'Maximum wind',
+  7:   'Tropopause',
+  8:   'Top of atmosphere',
+  10:  'Sea surface',
+  100: 'Isobaric surface (Pa)',
+  101: 'Mean sea level',
+  102: 'Specific altitude above MSL (m)',
+  103: 'Specific height above ground (m)',
+  104: 'Sigma level',
+  105: 'Hybrid level',
+  106: 'Depth below land surface (m)',
+  107: 'Isentropic level (K)',
+  108: 'Pressure difference from ground (Pa)',
+  200: 'Entire atmosphere',
+  204: 'Highest tropospheric freezing level',
+};
+
+const TIME_UNIT = { 0: 'min', 1: 'h', 2: 'd', 10: '3h', 11: '6h', 12: '12h', 13: 's' };
+
+const GENERATING_PROCESS = {
+  0: 'Analysis', 1: 'Initialization', 2: 'Forecast',
+  3: 'Bias-corrected forecast', 4: 'Ensemble forecast',
+};
+
+// ── Helpers ───────────────────────────────────────────────────────────────────
+
+function fmtSize(bytes) {
+  return bytes >= 1e6
+    ? (bytes / 1e6).toFixed(1) + ' MB'
+    : (bytes / 1e3).toFixed(0) + ' KB';
+}
+
+function fmtRefTime(h) {
+  const pad = n => String(n).padStart(2, '0');
+  return `${h.year}-${pad(h.month)}-${pad(h.day)} ${pad(h.hour)}:${pad(h.minute)} UTC`;
+}
+
+function fmtLevel(p) {
+  const label = TYPE_OF_LEVEL[p.typeOfFirstFixedSurface] ?? `type ${p.typeOfFirstFixedSurface}`;
+  if (p.typeOfFirstFixedSurface === 103) return `${p.levelValue} m above ground`;
+  if (p.typeOfFirstFixedSurface === 100) return `${p.levelValue} Pa`;
+  if (p.typeOfFirstFixedSurface === 1)   return 'Ground surface';
+  if (p.typeOfFirstFixedSurface === 10)  return 'Sea surface';
+  return `${label}${p.levelValue ? ' · ' + p.levelValue : ''}`;
+}
+
+function fmtForecast(p) {
+  const unit = TIME_UNIT[p.timeUnit] ?? `unit ${p.timeUnit}`;
+  return `+${p.forecastTime} ${unit}`;
+}
+
+function fmtGrid(g) {
+  return `${g.ni} × ${g.nj} pts · `
+    + `${g.latitudeOfLastPoint}°–${g.latitudeOfFirstPoint}°N · `
+    + `${g.longitudeOfFirstPoint}°–${g.longitudeOfLastPoint}°E`;
+}
+
+function fmtResolution(g) {
+  return `${g.di}° × ${g.dj}°`;
+}
+
+function code(table, v) {
+  return table[v] ? `${table[v]} (${v})` : String(v);
+}
+
+// ── Card builder ──────────────────────────────────────────────────────────────
+
+function buildCard(msg) {
+  const { index, product: p, header: h, grid: g } = msg;
+
+  const row = (key, val) => `
+    <div class="card-row">
+      <span class="key">${key}</span>
+      <span class="val">${val}</span>
+    </div>`;
+
+  return `
+    <div class="card">
+      <div class="card-header">
+        <span class="badge">${p.shortName}</span>
+        <div>
+          <div class="card-title">${p.name}</div>
+        </div>
+      </div>
+      <div class="card-rows">
+        ${row('Unit',     p.units)}
+        ${row('Level',    fmtLevel(p))}
+        ${row('Forecast', fmtForecast(p))}
+        ${row('Process',  code(GENERATING_PROCESS, p.typeOfGeneratingProcess))}
+        <hr class="card-divider">
+        ${row('Grid',     fmtGrid(g))}
+        ${row('Resolution', fmtResolution(g))}
+        ${row('Message #', index)}
+      </div>
+    </div>`;
+}
+
+// ── Core: read file and render ────────────────────────────────────────────────
+
+function processFile(file) {
+  setStatus('Reading file…');
+
+  const reader = new FileReader();
+  reader.onload = (e) => {
+    try {
+      const buffer = e.target.result;
+      const messages = [...iterateGRIB2Messages(buffer)];
+
+      if (messages.length === 0) {
+        setStatus('No GRIB2 messages found in this file.', true);
+        return;
+      }
+
+      // File summary
+      const first = messages[0];
+      document.getElementById('s-name').textContent    = file.name;
+      document.getElementById('s-size').textContent    = fmtSize(file.size);
+      document.getElementById('s-count').textContent   = messages.length;
+      document.getElementById('s-centre').textContent  =
+        CENTRES[first.header.centre] ?? `Centre ${first.header.centre}`;
+      document.getElementById('s-reftime').textContent = fmtRefTime(first.header);
+
+      document.getElementById('file-summary').style.display = 'flex';
+
+      // Cards
+      document.getElementById('cards').innerHTML =
+        messages.map(buildCard).join('');
+      document.getElementById('results').style.display = 'block';
+
+      setStatus('');
+    } catch (err) {
+      setStatus('Error: ' + err.message, true);
+    }
+  };
+  reader.onerror = () => setStatus('Could not read file.', true);
+  reader.readAsArrayBuffer(file);
+}
+
+function setStatus(msg, isError = false) {
+  const el = document.getElementById('status');
+  el.textContent = msg;
+  el.className = isError ? 'error' : '';
+}
+
+// ── Event wiring ──────────────────────────────────────────────────────────────
+
+const dropZone = document.getElementById('drop-zone');
+const fileInput = document.getElementById('file-input');
+
+dropZone.addEventListener('click', () => fileInput.click());
+dropZone.addEventListener('keydown', e => { if (e.key === 'Enter' || e.key === ' ') fileInput.click(); });
+
+fileInput.addEventListener('change', () => {
+  if (fileInput.files[0]) processFile(fileInput.files[0]);
+});
+
+dropZone.addEventListener('dragover', e => {
+  e.preventDefault();
+  dropZone.classList.add('over');
+});
+dropZone.addEventListener('dragleave', () => dropZone.classList.remove('over'));
+dropZone.addEventListener('drop', e => {
+  e.preventDefault();
+  dropZone.classList.remove('over');
+  const file = e.dataTransfer.files[0];
+  if (file) processFile(file);
+});
+</script>
+
 </body>
 </html>

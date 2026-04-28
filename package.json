@@ -11,7 +11,8 @@
   "scripts": {
     "test": "node --test test/decoder.test.js test/e2e.test.js",
     "info": "node grib2-info.js",
-    "export": "node grib2-export.js"
+    "export": "node grib2-export.js",
+    "serve": "npx serve ."
   },
   "license": "Apache-2.0",
   "devDependencies": {
