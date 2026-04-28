@@ -88,7 +88,7 @@ if (!variable) {
         'name'.padEnd(COL.name),
         'units'.padEnd(COL.units),
         'level'.padEnd(COL.level),
-        'validTime',
+        'forecastTime (UTC)',
     ].join('  ');
     console.log(hdr);
     console.log('─'.repeat(hdr.length));
@@ -157,7 +157,7 @@ console.log(lbl('Name')             + product.name);
 console.log(lbl('Units')            + product.units);
 console.log(lbl('Level type')       + product.typeOfFirstFixedSurface);
 console.log(lbl('Level value')      + product.levelValue);
-console.log(lbl('Valid time')        + fmtValidTime(header, product));
+console.log(lbl('Forecast time (UTC)') + fmtValidTime(header, product));
 console.log();
 console.log('── Identification ───────────────────────────────────');
 console.log(lbl('Centre')           + header.centre);

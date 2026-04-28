@@ -466,7 +466,7 @@ function buildCard(msg) {
       <div class="card-rows">
         ${row('Unit',       p.units)}
         ${row('Level',      fmtLevel(p))}
-        ${row('Valid time', fmtValidTime(header, p))}
+        ${row('Forecast time (UTC)', fmtValidTime(header, p))}
         ${row('Process',    code(GENERATING_PROCESS, p.typeOfGeneratingProcess))}
         <hr class="card-divider">
         ${row('Grid',       fmtGrid(g))}
