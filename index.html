@@ -419,26 +419,59 @@ function buildLUT(paletteName) {
   return lut;
 }
 
-// Render heatmap into the offscreen heatCanvas, then notify MapLibre.
-function renderHeatmap() {
-  const { values, min, range } = gridState;
-  const ctx = heatCanvas.getContext('2d');
-  const img = ctx.createImageData(heatCanvas.width, heatCanvas.height);
-  const px  = img.data;
-  const lut = buildLUT(currentPalette);
+// Mercator helpers (latitude in degrees)
+const mercatorY  = lat => Math.log(Math.tan(Math.PI / 4 + lat * Math.PI / 360));
+const invMercatorY = my => (2 * Math.atan(Math.exp(my)) - Math.PI / 2) * 180 / Math.PI;
 
-  for (let i = 0, n = values.length; i < n; i++) {
-    const v   = values[i];
-    const off = i * 4;
-    if (v <= MISSING_VALUE) {
-      px[off] = px[off+1] = px[off+2] = 180;
-      px[off+3] = 100;
-    } else {
-      const li = Math.min(Math.round(((v - min) / range) * 255), 255) * 3;
-      px[off]   = lut[li];
-      px[off+1] = lut[li + 1];
-      px[off+2] = lut[li + 2];
-      px[off+3] = 255;
+// Compute the Mercator-proportional canvas height for a given grid.
+// The canvas width equals grid.ni; height is chosen so that one pixel ≈ same
+// arc-length in both x and y when viewed in Web Mercator.
+function mercatorCanvasHeight(grid) {
+  const { ni, latitudeOfFirstPoint: la1, latitudeOfLastPoint: la2,
+          longitudeOfFirstPoint: lo1, longitudeOfLastPoint: lo2 } = grid;
+  const spanY = mercatorY(la1) - mercatorY(la2);
+  const spanX = (lo2 - lo1) * Math.PI / 180;
+  return Math.round(ni * spanY / spanX);
+}
+
+// Render heatmap into the offscreen heatCanvas, then notify MapLibre.
+// The canvas is pre-warped to Web Mercator: each row is inverse-Mercator'd
+// back to latitude so the image aligns perfectly with the basemap.
+function renderHeatmap() {
+  const { values, min, range, grid } = gridState;
+  const { ni, nj, latitudeOfFirstPoint: la1, latitudeOfLastPoint: la2, dj } = grid;
+  const lut  = buildLUT(currentPalette);
+  const outW = heatCanvas.width;   // = ni
+  const outH = heatCanvas.height;  // Mercator-proportional
+  const ctx  = heatCanvas.getContext('2d');
+  const img  = ctx.createImageData(outW, outH);
+  const px   = img.data;
+
+  const my1  = mercatorY(la1);
+  const mySpan = my1 - mercatorY(la2);
+
+  for (let py = 0; py < outH; py++) {
+    // Map output row → Mercator Y → geographic latitude
+    const lat = invMercatorY(my1 - (py / outH) * mySpan);
+    if (lat > la1 || lat < la2) continue;
+
+    const row    = Math.min(Math.max(Math.round((la1 - lat) / dj), 0), nj - 1);
+    const rowOff = row * ni;
+    const imgRow = py * outW;
+
+    for (let col = 0; col < outW; col++) {
+      const off = (imgRow + col) * 4;
+      const v   = values[rowOff + col];
+      if (v <= MISSING_VALUE) {
+        px[off] = px[off+1] = px[off+2] = 180;
+        px[off+3] = 100;
+      } else {
+        const li  = Math.min(Math.round(((v - min) / range) * 255), 255) * 3;
+        px[off]   = lut[li];
+        px[off+1] = lut[li+1];
+        px[off+2] = lut[li+2];
+        px[off+3] = 255;
+      }
     }
   }
   ctx.putImageData(img, 0, 0);
@@ -449,7 +482,6 @@ function renderHeatmap() {
   document.getElementById('cs-bar').style.background =
     `linear-gradient(to right, ${stops})`;
 
-  // Tell MapLibre to re-read the canvas on the next frame
   if (map) map.triggerRepaint();
 }
 
@@ -614,10 +646,10 @@ async function showGridView(shortName) {
   // Store state (grid + product needed by hover tooltip)
   gridState = { values, min, range, grid: gr, product: p };
 
-  // Offscreen canvas at full grid resolution
+  // Offscreen canvas: full grid width, Mercator-proportional height
   heatCanvas        = document.createElement('canvas');
   heatCanvas.width  = gr.ni;
-  heatCanvas.height = gr.nj;
+  heatCanvas.height = mercatorCanvasHeight(gr);
 
   // Geographic corners [lng, lat] — clockwise from top-left
   const { latitudeOfFirstPoint: la1, longitudeOfFirstPoint: lo1,
