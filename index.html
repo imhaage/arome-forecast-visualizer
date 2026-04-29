@@ -250,6 +250,142 @@
       transition: border-color .12s;
     }
     #palette-select:hover { border-color: #8b919e; }
+
+    /* ══════════════════════════════════════════════════════
+       AROME SHORTCUT (home)
+    ══════════════════════════════════════════════════════ */
+    #arome-shortcut {
+      margin-top: 24px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 6px;
+    }
+    #btn-arome {
+      background: #1a1d23;
+      color: #fff;
+      border: none;
+      border-radius: 8px;
+      padding: 11px 28px;
+      font-size: .9rem;
+      font-weight: 600;
+      cursor: pointer;
+      letter-spacing: .02em;
+      transition: background .15s;
+    }
+    #btn-arome:hover { background: #353b4a; }
+    #arome-shortcut small { font-size: .78rem; color: #8b919e; }
+
+    /* ══════════════════════════════════════════════════════
+       AROME VIEW — variable selection + download
+    ══════════════════════════════════════════════════════ */
+    #view-arome main { max-width: 960px; margin: 0 auto; padding: 32px 24px; }
+
+    #arome-step-header {
+      display: flex;
+      align-items: center;
+      gap: 14px;
+      margin-bottom: 24px;
+    }
+    #arome-step-header h2 {
+      font-size: .78rem;
+      text-transform: uppercase;
+      letter-spacing: .07em;
+      color: #8b919e;
+      margin: 0;
+    }
+    #arome-var-cards {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+      gap: 12px;
+    }
+    .arome-var-card {
+      background: #fff;
+      border: 2px solid #e2e6ec;
+      border-radius: 10px;
+      padding: 14px 16px;
+      cursor: pointer;
+      transition: border-color .15s, background .15s;
+    }
+    .arome-var-card:hover { border-color: #3b82f6; }
+    .arome-var-card.selected { border-color: #3b82f6; background: #eff6ff; }
+    .arome-var-card .vc-short {
+      font-family: monospace;
+      font-size: .8rem;
+      font-weight: 700;
+      background: #1a1d23;
+      color: #fff;
+      padding: 2px 7px;
+      border-radius: 4px;
+      display: inline-block;
+      margin-bottom: 8px;
+    }
+    .arome-var-card .vc-name { font-size: .88rem; font-weight: 600; margin-bottom: 2px; }
+    .arome-var-card .vc-meta { font-size: .74rem; color: #8b919e; }
+
+    #arome-select-footer { margin-top: 20px; }
+    #btn-arome-load {
+      padding: 10px 24px;
+      background: #1a1d23;
+      color: #fff;
+      border: none;
+      border-radius: 7px;
+      font-size: .88rem;
+      font-weight: 500;
+      cursor: pointer;
+      transition: background .15s;
+    }
+    #btn-arome-load:disabled { opacity: .4; cursor: not-allowed; }
+    #btn-arome-load:not(:disabled):hover { background: #353b4a; }
+
+    #arome-dl-status { font-size: .88rem; color: #555e6d; margin-bottom: 16px; }
+    #arome-dl-bars {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+      gap: 8px;
+    }
+    .arome-dl-item {
+      background: #fff;
+      border: 1px solid #e2e6ec;
+      border-radius: 8px;
+      padding: 8px 12px;
+    }
+    .arome-dl-label {
+      font-size: .74rem;
+      color: #555e6d;
+      margin-bottom: 5px;
+      font-variant-numeric: tabular-nums;
+    }
+    .arome-dl-track { height: 4px; background: #e2e6ec; border-radius: 2px; overflow: hidden; }
+    .arome-dl-fill  { height: 100%; background: #3b82f6; width: 0%; transition: width .1s; }
+    .arome-dl-item.done .arome-dl-fill { background: #22c55e; width: 100% !important; }
+
+    /* ══════════════════════════════════════════════════════
+       AROME PLAYER TOOLBAR (inside #view-grid)
+    ══════════════════════════════════════════════════════ */
+    #arome-player-toolbar {
+      display: flex;
+      align-items: center;
+      gap: 16px;
+      margin-bottom: 22px;
+      flex-wrap: wrap;
+    }
+    #arome-slider-wrap {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      flex: 1;
+      min-width: 200px;
+    }
+    #arome-slider { flex: 1; cursor: pointer; }
+    #arome-hour-label {
+      font-family: monospace;
+      font-size: .88rem;
+      font-weight: 700;
+      min-width: 44px;
+      white-space: nowrap;
+    }
+    #arome-valid-time { font-size: .76rem; color: #8b919e; white-space: nowrap; }
   </style>
 </head>
 <body>
@@ -272,6 +408,11 @@
       <input type="file" id="file-input" accept=".grib2,.grib">
     </div>
     <div id="status"></div>
+
+    <div id="arome-shortcut">
+      <button id="btn-arome">Données AROME en direct</button>
+      <small>Dernière run disponible · Météo-France SP1 · 0,01°</small>
+    </div>
 
     <div id="file-summary">
       <div class="meta-item">
@@ -299,6 +440,31 @@
     <div id="results">
       <h2>Variables</h2>
       <div class="cards" id="cards"></div>
+    </div>
+  </main>
+</div>
+
+<!-- ══════════════════════════════════════════════════════
+     AROME VIEW
+══════════════════════════════════════════════════════ -->
+<div id="view-arome" style="display:none">
+  <main>
+    <!-- Step 1 : variable selection -->
+    <div id="arome-step-select">
+      <div id="arome-step-header">
+        <button class="btn-back" id="arome-home-btn">← Accueil</button>
+        <h2>Choisir un paramètre — AROME SP1</h2>
+      </div>
+      <div id="arome-var-cards"></div>
+      <div id="arome-select-footer">
+        <button id="btn-arome-load" disabled>Télécharger la run</button>
+      </div>
+    </div>
+
+    <!-- Step 2 : download progress -->
+    <div id="arome-step-dl" style="display:none">
+      <p id="arome-dl-status">Récupération de la liste des fichiers…</p>
+      <div id="arome-dl-bars"></div>
     </div>
   </main>
 </div>
@@ -359,6 +525,39 @@
       </div>
     </div>
 
+    <!-- AROME player toolbar (shown instead of #grid-toolbar in AROME mode) -->
+    <div id="arome-player-toolbar" style="display:none">
+      <button class="btn-back" id="arome-back-btn">← Accueil</button>
+      <span class="badge" id="arome-player-badge"></span>
+      <div id="arome-slider-wrap">
+        <span id="arome-hour-label">+00H</span>
+        <input type="range" id="arome-slider" min="0" step="1" value="0">
+        <span id="arome-valid-time"></span>
+      </div>
+      <div id="palette-ctrl-arome" class="palette-ctrl-shared">
+        <label for="palette-select-arome">Palette</label>
+        <select id="palette-select-arome" class="palette-select-el">
+          <optgroup label="Perceptually uniform">
+            <option value="Plasma" selected>Plasma</option>
+            <option value="Viridis">Viridis</option>
+            <option value="Magma">Magma</option>
+            <option value="Inferno">Inferno</option>
+          </optgroup>
+          <optgroup label="Diverging">
+            <option value="Spectral">Spectral</option>
+            <option value="RdBu">RdBu</option>
+            <option value="RdYlBu">RdYlBu</option>
+          </optgroup>
+          <optgroup label="Sequential">
+            <option value="YlOrRd">YlOrRd</option>
+            <option value="OrRd">OrRd</option>
+            <option value="Blues">Blues</option>
+            <option value="YlGnBu">YlGnBu</option>
+          </optgroup>
+        </select>
+      </div>
+    </div>
+
     <div id="map-wrap">
       <div id="map"></div>
       <div id="map-tooltip" hidden></div>
@@ -380,12 +579,25 @@ import { iterateGRIB2Messages, decodeGRIB2, MISSING_VALUE } from './src/index.js
 import { computeStats } from './src/stats.js';
 import { CENTRES, GENERATING_PROCESS, fmtRefTime, fmtLevel, fmtValidTime } from './src/wmo-tables.js';
 
+// ── AROME SP1 variable catalogue (fixed list from real SP1 file) ──────────────
+const SP1_VARIABLES = [
+  { shortName: 't',     name: 'Température',       units: 'K',     level: '2 m'  },
+  { shortName: 'r',     name: 'Humidité relative', units: '%',     level: '2 m'  },
+  { shortName: 'u',     name: 'Vent U',            units: 'm s⁻¹', level: '10 m' },
+  { shortName: 'v',     name: 'Vent V',            units: 'm s⁻¹', level: '10 m' },
+  { shortName: 'ugust', name: 'Rafale U',          units: 'm s⁻¹', level: '10 m' },
+  { shortName: 'vgust', name: 'Rafale V',          units: 'm s⁻¹', level: '10 m' },
+];
+
 // ── State ─────────────────────────────────────────────────────────────────────
 let fileState      = null; // { messages: Array }
 let gridState      = null; // { values, min, range, grid, product }
 let currentPalette = 'Plasma';
 let map            = null; // MapLibre instance (created once, reused)
 let heatCanvas     = null; // offscreen canvas for heatmap rendering
+let aromeState     = null; // { resources, buffers, decoded, decodedOrder, variable, mapReady }
+let aromeSelVar    = SP1_VARIABLES[0].shortName; // selected variable before download
+let isDecoding     = false;
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -708,15 +920,218 @@ async function showGridView(shortName) {
   document.getElementById('colorscale').style.display = 'flex';
 }
 
+// ── AROME live data ───────────────────────────────────────────────────────────
+
+function buildAromeVarCards() {
+  document.getElementById('arome-var-cards').innerHTML = SP1_VARIABLES.map(v => `
+    <div class="arome-var-card${v.shortName === aromeSelVar ? ' selected' : ''}"
+         data-short="${v.shortName}">
+      <div class="vc-short">${v.shortName}</div>
+      <div class="vc-name">${v.name}</div>
+      <div class="vc-meta">${v.units} · ${v.level}</div>
+    </div>`).join('');
+}
+
+async function fetchAromeResources() {
+  const resp = await fetch('https://www.data.gouv.fr/api/1/datasets/65bd1247a6238f16e864fa80/');
+  if (!resp.ok) throw new Error(`API ${resp.status}`);
+  const data = await resp.json();
+  return data.resources
+    .filter(r => r.format === 'grib2' && r.title && r.title.includes('__SP1__'))
+    .map(r => {
+      const m = r.title.match(/__(\d+)H__/);
+      return { hour: m ? parseInt(m[1], 10) : -1, url: r.url, filesize: r.filesize };
+    })
+    .filter(r => r.hour >= 0)
+    .sort((a, b) => a.hour - b.hour);
+}
+
+async function downloadFileProg(url, filesize, onProgress) {
+  const resp = await fetch(url);
+  if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+  const reader = resp.body.getReader();
+  const chunks = [];
+  let loaded = 0;
+  while (true) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    chunks.push(value);
+    loaded += value.length;
+    onProgress(loaded, filesize || loaded);
+  }
+  const total = chunks.reduce((s, c) => s + c.length, 0);
+  const out   = new Uint8Array(total);
+  let off = 0;
+  for (const c of chunks) { out.set(c, off); off += c.length; }
+  return out;
+}
+
+async function aromeShowHour(idx) {
+  if (isDecoding) return;
+  isDecoding = true;
+
+  const { resources, buffers, decoded, decodedOrder, variable } = aromeState;
+  const { hour } = resources[idx];
+  document.getElementById('arome-hour-label').textContent =
+    `+${String(hour).padStart(2, '0')}H`;
+
+  let data;
+  if (decoded.has(hour)) {
+    data = decoded.get(hour);
+  } else {
+    if (decodedOrder.length >= 5) decoded.delete(decodedOrder.shift());
+    const buffer = buffers.get(hour);
+    let targetMsg = null;
+    for (const msg of iterateGRIB2Messages(buffer)) {
+      if (msg.product.shortName === variable) { targetMsg = msg; break; }
+    }
+    if (!targetMsg) { isDecoding = false; return; }
+    const dec = await decodeGRIB2(targetMsg.buffer);
+    data = { values: dec.values, grid: dec.grid, product: dec.product, header: dec.header };
+    decoded.set(hour, data);
+    decodedOrder.push(hour);
+  }
+
+  aromeState.currentHour = hour;
+  const { values, grid, product, header } = data;
+  const { min, max, mean, count } = computeStats(values);
+  const range = max - min || 1;
+  gridState = { values, min, range, grid, product };
+
+  // Create/resize offscreen canvas only when needed
+  const needH = mercatorCanvasHeight(grid);
+  const canvasChanged = !heatCanvas || heatCanvas.width !== grid.ni || heatCanvas.height !== needH;
+  if (canvasChanged) {
+    heatCanvas        = document.createElement('canvas');
+    heatCanvas.width  = grid.ni;
+    heatCanvas.height = needH;
+  }
+  renderHeatmap();
+
+  // Init map once
+  const { latitudeOfFirstPoint: la1, longitudeOfFirstPoint: lo1,
+          latitudeOfLastPoint:  la2, longitudeOfLastPoint:  lo2 } = grid;
+  const corners = [[lo1, la1], [lo2, la1], [lo2, la2], [lo1, la2]];
+  if (!map) {
+    map = new maplibregl.Map({
+      container: 'map', style: 'https://tiles.openfreemap.org/styles/positron', attributionControl: true,
+    });
+    await new Promise(r => map.once('load', r));
+    map.addControl(new maplibregl.FullscreenControl({ container: document.getElementById('map-wrap') }));
+    setupHoverTooltip();
+  }
+
+  // (Re)create source if canvas changed or source missing
+  if (!map.getSource('grib2') || canvasChanged) {
+    if (map.getSource('grib2')) { map.removeLayer('grib2-layer'); map.removeSource('grib2'); }
+    map.addSource('grib2', { type: 'canvas', canvas: heatCanvas, coordinates: corners, animate: true });
+    map.addLayer({ id: 'grib2-layer', type: 'raster', source: 'grib2',
+                   paint: { 'raster-opacity': 0.8, 'raster-resampling': 'nearest' } });
+  }
+  if (!aromeState.mapReady) {
+    map.fitBounds([[lo1, la2], [lo2, la1]], { padding: 20, animate: false });
+    aromeState.mapReady = true;
+  }
+
+  // Update stats + colorscale + valid time
+  document.getElementById('gv-min').textContent   = fmtNum(min, 3) + ' ' + product.units;
+  document.getElementById('gv-max').textContent   = fmtNum(max, 3) + ' ' + product.units;
+  document.getElementById('gv-mean').textContent  = fmtNum(mean, 3) + ' ' + product.units;
+  document.getElementById('gv-valid').textContent = count.toLocaleString();
+  document.getElementById('cs-min').textContent   = fmtNum(min, 2);
+  document.getElementById('cs-max').textContent   = fmtNum(max, 2);
+  document.getElementById('cs-unit').textContent  = product.units;
+  document.getElementById('colorscale').style.display = 'flex';
+  document.getElementById('arome-valid-time').textContent = fmtValidTime(header, product);
+
+  isDecoding = false;
+}
+
+async function startAromeDownload() {
+  document.getElementById('arome-step-select').style.display = 'none';
+  document.getElementById('arome-step-dl').style.display     = 'block';
+  document.getElementById('arome-dl-status').textContent     = 'Récupération de la liste des fichiers…';
+
+  let resources;
+  try {
+    resources = await fetchAromeResources();
+  } catch (e) {
+    document.getElementById('arome-dl-status').textContent = 'Erreur API : ' + e.message;
+    return;
+  }
+
+  document.getElementById('arome-dl-status').textContent =
+    `Téléchargement de ${resources.length} fichiers SP1…`;
+
+  // Build progress bars
+  const barsEl = document.getElementById('arome-dl-bars');
+  barsEl.innerHTML = '';
+  const fills = new Map();
+  for (const { hour } of resources) {
+    const item = document.createElement('div');
+    item.className = 'arome-dl-item';
+    item.id = `dl-${hour}`;
+    item.innerHTML = `<div class="arome-dl-label">+${String(hour).padStart(2, '0')}H</div>
+                      <div class="arome-dl-track"><div class="arome-dl-fill" id="fill-${hour}"></div></div>`;
+    barsEl.appendChild(item);
+    fills.set(hour, document.getElementById(`fill-${hour}`));
+  }
+
+  aromeState = { resources, buffers: new Map(), decoded: new Map(),
+                 decodedOrder: [], variable: aromeSelVar, mapReady: false };
+
+  let doneCount = 0;
+  await Promise.all(resources.map(async ({ hour, url, filesize }) => {
+    aromeState.buffers.set(hour, await downloadFileProg(url, filesize, (loaded, total) => {
+      fills.get(hour).style.width = Math.round(loaded / total * 100) + '%';
+    }));
+    document.getElementById(`dl-${hour}`).classList.add('done');
+    doneCount++;
+    document.getElementById('arome-dl-status').textContent =
+      `Téléchargement… ${doneCount} / ${resources.length}`;
+  }));
+
+  // Switch to player (reuse #view-grid)
+  document.getElementById('view-arome').style.display           = 'none';
+  document.getElementById('view-grid').style.display            = 'block';
+  document.getElementById('grid-toolbar').style.display         = 'none';
+  document.getElementById('arome-player-toolbar').style.display = 'flex';
+
+  const v = SP1_VARIABLES.find(x => x.shortName === aromeSelVar);
+  document.getElementById('arome-player-badge').textContent = v?.shortName ?? '';
+
+  const slider = document.getElementById('arome-slider');
+  slider.max   = resources.length - 1;
+  slider.value = 0;
+
+  // Decode and show first hour
+  await aromeShowHour(0);
+}
+
 // ── Router (hash-based) ───────────────────────────────────────────────────────
+
+function showView(name) {
+  for (const id of ['view-home', 'view-arome', 'view-grid'])
+    document.getElementById(id).style.display = (id === name) ? 'block' : 'none';
+}
 
 function route() {
   const hash = location.hash;
   if (hash.startsWith('#grid/')) {
+    showView('view-grid');
+    document.getElementById('grid-toolbar').style.display         = 'flex';
+    document.getElementById('arome-player-toolbar').style.display = 'none';
     showGridView(decodeURIComponent(hash.slice(6)));
+  } else if (hash === '#arome') {
+    showView('view-arome');
+    // Reset to step 1 if no download in progress
+    if (!aromeState?.buffers?.size) {
+      document.getElementById('arome-step-select').style.display = 'block';
+      document.getElementById('arome-step-dl').style.display     = 'none';
+    }
+    buildAromeVarCards();
   } else {
-    document.getElementById('view-grid').style.display  = 'none';
-    document.getElementById('view-home').style.display  = 'block';
+    showView('view-home');
   }
 }
 
@@ -754,6 +1169,51 @@ document.getElementById('back-btn').addEventListener('click', () => {
 
 document.getElementById('palette-select').addEventListener('change', e => {
   currentPalette = e.target.value;
+  if (gridState) renderHeatmap();
+});
+
+// ── AROME events ──────────────────────────────────────────────────────────────
+
+document.getElementById('btn-arome').addEventListener('click', () => {
+  location.hash = '#arome';
+});
+
+document.getElementById('arome-home-btn').addEventListener('click', () => {
+  location.hash = '';
+});
+
+document.getElementById('arome-back-btn').addEventListener('click', () => {
+  location.hash = '';
+});
+
+document.getElementById('arome-var-cards').addEventListener('click', e => {
+  const card = e.target.closest('.arome-var-card');
+  if (!card) return;
+  aromeSelVar = card.dataset.short;
+  document.querySelectorAll('.arome-var-card').forEach(c =>
+    c.classList.toggle('selected', c.dataset.short === aromeSelVar));
+  document.getElementById('btn-arome-load').disabled = false;
+});
+
+document.getElementById('btn-arome-load').addEventListener('click', () => {
+  startAromeDownload();
+});
+
+const aromeSlider = document.getElementById('arome-slider');
+aromeSlider.addEventListener('input', () => {
+  if (!aromeState) return;
+  const h = aromeState.resources[aromeSlider.value].hour;
+  document.getElementById('arome-hour-label').textContent = `+${String(h).padStart(2, '0')}H`;
+});
+aromeSlider.addEventListener('change', () => {
+  if (!aromeState) return;
+  aromeShowHour(parseInt(aromeSlider.value, 10));
+});
+
+document.getElementById('palette-select-arome').addEventListener('change', e => {
+  currentPalette = e.target.value;
+  // Keep both selects in sync
+  document.getElementById('palette-select').value = e.target.value;
   if (gridState) renderHeatmap();
 });
 </script>
