@@ -195,6 +195,12 @@
       height: 600px;
     }
 
+    #map-wrap:fullscreen        { width: 100%; height: 100%; }
+    #map-wrap:fullscreen #map   { height: 100%; }
+    /* Safari */
+    #map-wrap:-webkit-full-screen        { width: 100%; height: 100%; }
+    #map-wrap:-webkit-full-screen #map   { height: 100%; }
+
     #map-tooltip {
       position: absolute;
       z-index: 10;
@@ -667,7 +673,7 @@ async function showGridView(shortName) {
       attributionControl: true,
     });
     await new Promise(r => map.once('load', r));
-    map.addControl(new maplibregl.FullscreenControl());
+    map.addControl(new maplibregl.FullscreenControl({ container: document.getElementById('map-wrap') }));
     setupHoverTooltip();
   }
 
