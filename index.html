@@ -667,6 +667,7 @@ async function showGridView(shortName) {
       attributionControl: true,
     });
     await new Promise(r => map.once('load', r));
+    map.addControl(new maplibregl.FullscreenControl());
     setupHoverTooltip();
   }
 
