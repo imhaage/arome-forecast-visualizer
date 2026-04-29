@@ -4,7 +4,7 @@ Browser-native GRIB2 decoder — no server, no backend required.
 
 ## Développement
 
-Projet développé intégralement avec **Claude Code** (modèle **Sonnet 4.6**). Aucune ligne de code n'a été écrite manuellement par un humain.
+Ce projet est une **expérimentation** : développer un projet complet sans qu'aucune ligne de code ne soit écrite manuellement par un humain. L'intégralité du code a été produite par **Claude Code** (modèle **Sonnet 4.6**).
 
 ## Fonctionnalités
 
