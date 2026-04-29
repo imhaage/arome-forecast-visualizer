@@ -1,6 +1,6 @@
 # GRIB2 Decoder
 
-Visualiseur browser-native des données météorologiques **AROME** et **ARPÈGE** (Météo-France) au format GRIB2 — aucun serveur requis.
+Visualiseur browser-native des données météorologiques **AROME 0.01°** (Météo-France) au format GRIB2 — aucun serveur requis.
 
 ## Développement
 
@@ -13,7 +13,7 @@ Ce projet est une **expérimentation** : développer un projet complet sans qu'a
 - **Carte interactive** MapLibre GL JS + fond OpenFreeMap : zoom, pan, plein écran
 - **Tooltip au survol** : valeur exacte du pixel (nom long, valeur, unité)
 - Plusieurs palettes de couleurs, colorscale dynamique
-- Conçu pour les données **AROME** et **ARPÈGE** (Météo-France)
+- Conçu pour les données **AROME 0.01°** (Météo-France)
 - Fonctionne entièrement dans le navigateur — aucun serveur requis
 
 ## Démarrage rapide
@@ -55,4 +55,4 @@ npm test   # 101 tests
 | Section 3 — grille | Template 0 uniquement (lat/lon régulière) |
 | Section 4 — produit | Template 0 uniquement (analyse / prévision surface) |
 | Section 5 — représentation | CCSDS (42), simple packing (0), IEEE 754 (254), missing (255) |
-| Fichiers testés | AROME SP — ARPÈGE non encore validé en pratique |
+| Fichiers testés | AROME SP 0.01° — autres modèles non validés |
