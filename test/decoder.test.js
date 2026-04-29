@@ -10,6 +10,7 @@ import { describe, it, before } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { walkSections, parseSection1, parseSection3, parseSection5, parseSection6 } from '../src/decoder.js';
+import { lookupParameter } from '../src/parameters.js';
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -178,5 +179,51 @@ describe('parseSection6', () => {
         let missing = 0;
         for (const bit of s6.bitmap) if (bit === 0) missing++;
         assert.equal(missing, 856072);
+    });
+});
+
+// ─── lookupParameter ─────────────────────────────────────────────────────────
+
+describe('lookupParameter', () => {
+    it('returns correct entry for standard parameters', () => {
+        assert.equal(lookupParameter(0, 0, 0).shortName, 't');
+        assert.equal(lookupParameter(0, 1, 1).shortName, 'r');
+        assert.equal(lookupParameter(0, 2, 2).shortName, 'u');
+        assert.equal(lookupParameter(0, 2, 3).shortName, 'v');
+    });
+
+    it('CAPE is at 0:7:6, not 0:7:0 (regression)', () => {
+        assert.equal(lookupParameter(0, 7, 6).shortName, 'cape');
+        assert.equal(lookupParameter(0, 7, 7).shortName, 'cin');
+        assert.notEqual(lookupParameter(0, 7, 0).shortName, 'cape'); // 0:7:0 = pli
+    });
+
+    it('LW radiation: Net-surface at 0:5:0, Downward at 0:5:3 (regression)', () => {
+        assert.equal(lookupParameter(0, 5, 0).shortName, 'nlwrs');
+        assert.equal(lookupParameter(0, 5, 3).shortName, 'dlwrf');
+        assert.equal(lookupParameter(0, 5, 4).shortName, 'ulwrf');
+    });
+
+    it('slhf/sshf are at 0:0:10/11, not in moisture category (regression)', () => {
+        assert.equal(lookupParameter(0, 0, 10).shortName, 'slhf');
+        assert.equal(lookupParameter(0, 0, 11).shortName, 'sshf');
+    });
+
+    it('HP/IP parameters resolve correctly', () => {
+        assert.equal(lookupParameter(0, 1, 83).shortName, 'clwc');
+        assert.equal(lookupParameter(0, 1, 84).shortName, 'ciwc');
+        assert.equal(lookupParameter(0, 3, 18).shortName, 'blh');
+        assert.equal(lookupParameter(0, 14, 0).shortName, 'toz');
+    });
+
+    it('land surface parameters (discipline 2)', () => {
+        assert.equal(lookupParameter(2, 0, 2).shortName, 'stl');
+        assert.equal(lookupParameter(2, 0, 9).shortName, 'swvl');
+    });
+
+    it('returns unknown placeholder for unregistered parameters', () => {
+        const r = lookupParameter(0, 99, 99);
+        assert.ok(r.shortName.startsWith('par_'));
+        assert.equal(r.units, 'unknown');
     });
 });

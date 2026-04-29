@@ -6,6 +6,7 @@
 src/
 ├── decoder.js       — parsers de sections + API publique
 ├── parameters.js    — table de paramètres WMO (discipline:catégorie:numéro → shortName)
+│                      Disciplines 0 (météo) et 2 (surface terrestre) — AROME SP/HP/IP + ARPEGE
 ├── stats.js         — computeStats(values) : min/max/mean/stddev/count
 ├── wmo-tables.js    — tables WMO (CENTRES, TIME_UNIT, TYPE_OF_LEVEL…) + helpers de formatage
 ├── index.js         — re-exporte tous les symboles publics
@@ -49,7 +50,7 @@ Les sections 2 et 8 ne sont pas parsées. Plusieurs messages peuvent se suivre d
 import { decodeGRIB2, iterateGRIB2Messages, parseGRIB2Header,
          MISSING_VALUE, computeStats,
          CENTRES, TIME_UNIT, TYPE_OF_LEVEL, GENERATING_PROCESS,
-         fmtLevel, fmtForecast, fmtRefTime, fmtScanMode,
+         fmtLevel, fmtForecast, fmtValidTime, fmtRefTime, fmtScanMode,
          lookupParameter } from './src/index.js';
 ```
 
@@ -80,8 +81,8 @@ Exportées et utilisables dans les deux environnements (navigateur + Node.js) :
 `CENTRES`, `DISCIPLINES`, `REF_TIME_SIGNIFICANCE`, `TYPE_OF_DATA`, `TYPE_OF_LEVEL`,
 `TIME_UNIT`, `GENERATING_PROCESS`, `DATA_REPR_TEMPLATES`, `SCAN_MODE_BITS`.
 
-Helpers de formatage : `fmtRefTime(header)`, `fmtLevel(product)`,
-`fmtForecast(product)`, `fmtScanMode(mode)`.
+Helpers de formatage : `fmtRefTime(header)`, `fmtValidTime(header, product)`,
+`fmtLevel(product)`, `fmtForecast(product)`, `fmtScanMode(mode)`.
 
 ## Tests
 
@@ -89,5 +90,6 @@ Helpers de formatage : `fmtRefTime(header)`, `fmtLevel(product)`,
 npm test   # node --test test/decoder.test.js test/e2e.test.js
 ```
 
-93 tests couvrant : walkSections, parseSection1/3/5/6, decodeGRIB2 (valeurs physiques,
-bitmap, formule de décompression CCSDS), parseGRIB2Header.
+101 tests couvrant : walkSections, parseSection1/3/5/6, decodeGRIB2 (valeurs physiques,
+bitmap, formule de décompression CCSDS), parseGRIB2Header, lookupParameter (régressions
+sur les indices WMO : cape/cin, LW radiation, slhf/sshf).
