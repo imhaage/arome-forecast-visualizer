@@ -4,6 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>GRIB2 Decoder</title>
+  <link rel="stylesheet" href="https://unpkg.com/maplibre-gl@4/dist/maplibre-gl.css">
   <style>
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
@@ -182,25 +183,28 @@
     .stat-label { font-size: .68rem; text-transform: uppercase; letter-spacing: .07em; color: #8b919e; }
     .stat-value { font-size: .88rem; font-weight: 600; font-variant-numeric: tabular-nums; }
 
-    /* ── Canvas area ── */
-    #grid-canvas-wrap {
-      background: #dde0e8;
+    /* ── Map area ── */
+    #map-wrap {
+      position: relative;
       border-radius: 10px;
       overflow: hidden;
-      line-height: 0;
     }
 
-    #grid-canvas {
-      display: block;
-      max-width: 100%;
-      height: auto;
+    #map {
+      width: 100%;
+      height: 600px;
     }
 
-    #grid-loading {
-      padding: 100px 0;
-      text-align: center;
-      color: #8b919e;
-      font-size: .9rem;
+    #map-tooltip {
+      position: absolute;
+      z-index: 10;
+      pointer-events: none;
+      background: rgba(0, 0, 0, .72);
+      color: #fff;
+      padding: 5px 9px;
+      border-radius: 5px;
+      font-size: .78rem;
+      white-space: nowrap;
     }
 
     /* ── Color scale ── */
@@ -349,9 +353,9 @@
       </div>
     </div>
 
-    <div id="grid-canvas-wrap">
-      <div id="grid-loading">Decoding…</div>
-      <canvas id="grid-canvas"></canvas>
+    <div id="map-wrap">
+      <div id="map"></div>
+      <div id="map-tooltip" hidden></div>
     </div>
 
     <div id="colorscale">
@@ -364,16 +368,18 @@
 </div>
 
 <script type="module">
+import maplibregl from 'https://esm.sh/maplibre-gl@4';
 import chroma from 'https://esm.sh/chroma-js@2.4.2';
 import { iterateGRIB2Messages, decodeGRIB2, MISSING_VALUE } from './src/index.js';
 import { computeStats } from './src/stats.js';
 import { CENTRES, GENERATING_PROCESS, fmtRefTime, fmtLevel, fmtValidTime } from './src/wmo-tables.js';
 
 // ── State ─────────────────────────────────────────────────────────────────────
-// Kept in memory: no cross-page serialization needed.
 let fileState      = null; // { messages: Array }
-let gridState      = null; // { values, min, range } — kept to re-render on palette change
+let gridState      = null; // { values, min, range, grid, product }
 let currentPalette = 'Plasma';
+let map            = null; // MapLibre instance (created once, reused)
+let heatCanvas     = null; // offscreen canvas for heatmap rendering
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -391,20 +397,16 @@ function code(table, v) { return table[v] ? `${table[v]} (${v})` : String(v); }
 
 // ── Colormap (chroma-js) ──────────────────────────────────────────────────────
 
-// Plasma, Magma, Inferno are absent from chroma.brewer in the ESM build.
-// Viridis and all ColorBrewer names (Spectral, RdBu, Blues…) are in chroma.brewer.
 const CUSTOM_SCALES = {
   Plasma:  ['#0d0887', '#7e03a8', '#cb4679', '#f89441', '#f0f921'],
   Magma:   ['#000004', '#51127c', '#b73779', '#fc8961', '#fcfdbf'],
   Inferno: ['#000004', '#420a68', '#932667', '#dd513a', '#fcffa4'],
 };
 
-// Resolve a palette name to a chroma scale, using chroma.brewer when available.
 function makeScale(paletteName) {
   return chroma.scale(CUSTOM_SCALES[paletteName] ?? chroma.brewer[paletteName]);
 }
 
-// Build a 256-entry RGB lookup table — avoids calling chroma for every pixel.
 function buildLUT(paletteName) {
   const sc  = makeScale(paletteName);
   const lut = new Uint8Array(256 * 3);
@@ -417,14 +419,13 @@ function buildLUT(paletteName) {
   return lut;
 }
 
-// Re-render the canvas and update the legend bar using gridState + currentPalette.
+// Render heatmap into the offscreen heatCanvas, then notify MapLibre.
 function renderHeatmap() {
   const { values, min, range } = gridState;
-  const canvas = document.getElementById('grid-canvas');
-  const ctx    = canvas.getContext('2d');
-  const img    = ctx.createImageData(canvas.width, canvas.height);
-  const px     = img.data;
-  const lut    = buildLUT(currentPalette);
+  const ctx = heatCanvas.getContext('2d');
+  const img = ctx.createImageData(heatCanvas.width, heatCanvas.height);
+  const px  = img.data;
+  const lut = buildLUT(currentPalette);
 
   for (let i = 0, n = values.length; i < n; i++) {
     const v   = values[i];
@@ -442,10 +443,60 @@ function renderHeatmap() {
   }
   ctx.putImageData(img, 0, 0);
 
+  // Update legend bar
   const sc    = makeScale(currentPalette);
   const stops = Array.from({length: 8}, (_, i) => sc(i / 7).css()).join(', ');
   document.getElementById('cs-bar').style.background =
     `linear-gradient(to right, ${stops})`;
+
+  // Tell MapLibre to re-read the canvas on the next frame
+  if (map) map.triggerRepaint();
+}
+
+// ── Hover tooltip ─────────────────────────────────────────────────────────────
+
+function setupHoverTooltip() {
+  const tooltip   = document.getElementById('map-tooltip');
+  const mapCanvas = map.getCanvas();
+
+  map.on('mousemove', e => {
+    if (!gridState) return;
+    const { lat, lng } = e.lngLat;
+    const { grid, values, product } = gridState;
+    const { ni, latitudeOfFirstPoint: la1, longitudeOfFirstPoint: lo1,
+            latitudeOfLastPoint: la2, longitudeOfLastPoint: lo2, di, dj } = grid;
+
+    // Outside domain
+    if (lat > la1 || lat < la2 || lng < lo1 || lng > lo2) {
+      tooltip.hidden = true;
+      mapCanvas.style.cursor = '';
+      return;
+    }
+
+    const row = Math.round((la1 - lat) / dj);
+    const col = Math.round((lng  - lo1) / di);
+    const idx = row * ni + col;
+    const val = (idx >= 0 && idx < values.length) ? values[idx] : MISSING_VALUE;
+
+    if (val <= MISSING_VALUE) {
+      tooltip.hidden = true;
+      mapCanvas.style.cursor = 'default';
+      return;
+    }
+
+    mapCanvas.style.cursor = 'crosshair';
+    tooltip.hidden = false;
+    tooltip.textContent = `${product.name} : ${val.toFixed(2)} ${product.units}`;
+    const wrap = document.getElementById('map-wrap');
+    const rect = wrap.getBoundingClientRect();
+    tooltip.style.left = (e.originalEvent.clientX - rect.left + 14) + 'px';
+    tooltip.style.top  = (e.originalEvent.clientY - rect.top  - 36) + 'px';
+  });
+
+  map.on('mouseout', () => {
+    tooltip.hidden = true;
+    mapCanvas.style.cursor = '';
+  });
 }
 
 // ── Card builder ──────────────────────────────────────────────────────────────
@@ -514,7 +565,7 @@ function setStatus(msg, isError = false) {
   el.className = isError ? 'error' : '';
 }
 
-// ── Grid view: decode + render ────────────────────────────────────────────────
+// ── Grid view: decode + render on map ────────────────────────────────────────
 
 async function showGridView(shortName) {
   if (!fileState) { location.hash = ''; return; }
@@ -523,7 +574,6 @@ async function showGridView(shortName) {
   if (!msg) { location.hash = ''; return; }
 
   const p = msg.product;
-  const g = msg.grid;
 
   // Populate toolbar
   document.getElementById('gv-badge').textContent = p.shortName;
@@ -531,13 +581,10 @@ async function showGridView(shortName) {
   document.getElementById('gv-sub').textContent   =
     `${fmtLevel(p)} · ${fmtValidTime(msg.header, p)}`;
 
-  // Reset stats + show loading
+  // Reset stats
   for (const id of ['gv-min','gv-max','gv-mean','gv-valid']) {
     document.getElementById(id).textContent = '—';
   }
-  document.getElementById('grid-loading').style.display = 'block';
-  const canvas = document.getElementById('grid-canvas');
-  canvas.style.display = 'none';
   document.getElementById('colorscale').style.display = 'none';
 
   // Switch view
@@ -549,7 +596,7 @@ async function showGridView(shortName) {
   try {
     decoded = await decodeGRIB2(msg.buffer);
   } catch (err) {
-    document.getElementById('grid-loading').textContent = 'Decode error: ' + err.message;
+    document.getElementById('map').textContent = 'Decode error: ' + err.message;
     return;
   }
 
@@ -564,18 +611,58 @@ async function showGridView(shortName) {
   document.getElementById('gv-mean').textContent  = fmtNum(mean, 3) + ' ' + p.units;
   document.getElementById('gv-valid').textContent = count.toLocaleString();
 
-  // Store decoded data — needed to re-render on palette change without re-decoding
-  gridState = { values, min, range };
+  // Store state (grid + product needed by hover tooltip)
+  gridState = { values, min, range, grid: gr, product: p };
 
-  // Set canvas dimensions once, then render
-  canvas.width  = gr.ni;
-  canvas.height = gr.nj;
+  // Offscreen canvas at full grid resolution
+  heatCanvas        = document.createElement('canvas');
+  heatCanvas.width  = gr.ni;
+  heatCanvas.height = gr.nj;
+
+  // Geographic corners [lng, lat] — clockwise from top-left
+  const { latitudeOfFirstPoint: la1, longitudeOfFirstPoint: lo1,
+          latitudeOfLastPoint:  la2, longitudeOfLastPoint:  lo2 } = gr;
+  const corners = [[lo1, la1], [lo2, la1], [lo2, la2], [lo1, la2]];
+
+  // Render heatmap into offscreen canvas
   renderHeatmap();
 
-  // Show canvas + color scale
-  document.getElementById('grid-loading').style.display = 'none';
-  canvas.style.display = 'block';
+  // Init MapLibre once
+  if (!map) {
+    map = new maplibregl.Map({
+      container: 'map',
+      style: 'https://tiles.openfreemap.org/styles/positron',
+      attributionControl: true,
+    });
+    await new Promise(r => map.once('load', r));
+    setupHoverTooltip();
+  }
 
+  // Replace raster source + layer
+  if (map.getSource('grib2')) {
+    map.removeLayer('grib2-layer');
+    map.removeSource('grib2');
+  }
+  map.addSource('grib2', {
+    type: 'canvas',
+    canvas: heatCanvas,
+    coordinates: corners,
+    animate: true,
+  });
+  map.addLayer({
+    id: 'grib2-layer',
+    type: 'raster',
+    source: 'grib2',
+    paint: {
+      'raster-opacity': 0.8,
+      'raster-resampling': 'nearest',
+    },
+  });
+
+  // Fit map to grid bounds
+  map.fitBounds([[lo1, la2], [lo2, la1]], { padding: 20, animate: false });
+
+  // Show color scale
   document.getElementById('cs-min').textContent  = fmtNum(min, 2);
   document.getElementById('cs-max').textContent  = fmtNum(max, 2);
   document.getElementById('cs-unit').textContent = p.units;
@@ -585,7 +672,7 @@ async function showGridView(shortName) {
 // ── Router (hash-based) ───────────────────────────────────────────────────────
 
 function route() {
-  const hash = location.hash; // '#grid/t', '#grid/r', …
+  const hash = location.hash;
   if (hash.startsWith('#grid/')) {
     showGridView(decodeURIComponent(hash.slice(6)));
   } else {
@@ -595,11 +682,11 @@ function route() {
 }
 
 window.addEventListener('hashchange', route);
-route(); // handle initial URL
+route();
 
 // ── Event wiring ──────────────────────────────────────────────────────────────
 
-const dropZone = document.getElementById('drop-zone');
+const dropZone  = document.getElementById('drop-zone');
 const fileInput = document.getElementById('file-input');
 
 dropZone.addEventListener('click', () => fileInput.click());
@@ -617,18 +704,15 @@ dropZone.addEventListener('drop', e => {
   if (e.dataTransfer.files[0]) processFile(e.dataTransfer.files[0]);
 });
 
-// Card → grid navigation (event delegation)
 document.getElementById('cards').addEventListener('click', e => {
   const btn = e.target.closest('.btn-grid');
   if (btn) location.hash = '#grid/' + encodeURIComponent(btn.dataset.var);
 });
 
-// Back button
 document.getElementById('back-btn').addEventListener('click', () => {
   location.hash = '';
 });
 
-// Palette selector
 document.getElementById('palette-select').addEventListener('change', e => {
   currentPalette = e.target.value;
   if (gridState) renderHeatmap();
