@@ -806,6 +806,7 @@
       let aromeState = null; // { resources, buffers, decoded, decodedOrder, variable, mapReady }
       let aromeSelVar = null; // selected variable before download
       let isDecoding = false;
+      let pendingHourIdx = null;
 
       // ── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -1266,8 +1267,9 @@
       }
 
       async function aromeShowHour(idx) {
-        if (isDecoding) return;
+        if (isDecoding) { pendingHourIdx = idx; return; }
         isDecoding = true;
+        pendingHourIdx = null;
 
         const { resources, buffers, decoded, decodedOrder, variable } =
           aromeState;
@@ -1399,6 +1401,11 @@
         );
 
         isDecoding = false;
+        if (pendingHourIdx !== null) {
+          const next = pendingHourIdx;
+          pendingHourIdx = null;
+          aromeShowHour(next);
+        }
       }
 
       async function startAromeDownload() {
@@ -1595,13 +1602,11 @@
       const aromeSlider = document.getElementById("arome-slider");
       aromeSlider.addEventListener("input", () => {
         if (!aromeState) return;
-        const h = aromeState.resources[aromeSlider.value].hour;
+        const idx = parseInt(aromeSlider.value, 10);
+        const h = aromeState.resources[idx].hour;
         document.getElementById("arome-hour-label").textContent =
           `+${String(h).padStart(2, "0")}H`;
-      });
-      aromeSlider.addEventListener("change", () => {
-        if (!aromeState) return;
-        aromeShowHour(parseInt(aromeSlider.value, 10));
+        aromeShowHour(idx);
       });
 
       document
