@@ -804,7 +804,7 @@
       let map = null; // MapLibre instance (created once, reused)
       let heatCanvas = null; // offscreen canvas for heatmap rendering
       let aromeState = null; // { resources, buffers, decoded, decodedOrder, variable, mapReady }
-      let aromeSelVar = SP1_VARIABLES[0].shortName; // selected variable before download
+      let aromeSelVar = null; // selected variable before download
       let isDecoding = false;
 
       // ── Helpers ───────────────────────────────────────────────────────────────────
