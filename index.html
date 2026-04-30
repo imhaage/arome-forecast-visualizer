@@ -1,1222 +1,1614 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="en">
-<head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Weather forecast (Météo France AROME)</title>
-  <link rel="stylesheet" href="https://unpkg.com/maplibre-gl@4/dist/maplibre-gl.css">
-  <style>
-    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Weather forecast (Météo France AROME)</title>
+    <link
+      rel="stylesheet"
+      href="https://unpkg.com/maplibre-gl@4/dist/maplibre-gl.css"
+    />
+    <style>
+      *,
+      *::before,
+      *::after {
+        box-sizing: border-box;
+        margin: 0;
+        padding: 0;
+      }
 
-    body {
-      font-family: system-ui, -apple-system, sans-serif;
-      background: #f5f6f8;
-      color: #1a1d23;
-      min-height: 100vh;
-    }
+      body {
+        font-family:
+          system-ui,
+          -apple-system,
+          sans-serif;
+        background: #f5f6f8;
+        color: #1a1d23;
+        min-height: 100vh;
+      }
 
-    header {
-      background: #1a1d23;
-      color: #fff;
-      padding: 18px 32px;
-      display: flex;
-      align-items: center;
-      gap: 12px;
-    }
-    header h1 { font-size: 1.15rem; font-weight: 600; letter-spacing: .02em; }
-    header span { font-size: .8rem; color: #8b919e; font-weight: 400; }
+      header {
+        background: #1a1d23;
+        color: #fff;
+        padding: 18px 32px;
+        display: flex;
+        align-items: center;
+        gap: 12px;
+      }
+      header h1 {
+        font-size: 1.15rem;
+        font-weight: 600;
+        letter-spacing: 0.02em;
+      }
+      header span {
+        font-size: 0.8rem;
+        color: #8b919e;
+        font-weight: 400;
+      }
 
-    /* ══════════════════════════════════════════════════════
+      /* ══════════════════════════════════════════════════════
        HOME VIEW
     ══════════════════════════════════════════════════════ */
 
-    #view-home main { max-width: 960px; margin: 0 auto; padding: 32px 24px; }
+      #view-home main {
+        max-width: 960px;
+        margin: 0 auto;
+        padding: 32px 24px;
+      }
 
-    /* ── Drop zone ── */
-    #drop-zone {
-      border: 2px dashed #c5cad4;
-      border-radius: 12px;
-      background: #fff;
-      padding: 56px 32px;
-      text-align: center;
-      cursor: pointer;
-      transition: border-color .2s, background .2s;
-    }
-    #drop-zone:hover, #drop-zone.over {
-      border-color: #3b82f6;
-      background: #eff6ff;
-    }
-    #drop-zone .icon { font-size: 2.5rem; margin-bottom: 12px; }
-    #drop-zone p { color: #555e6d; font-size: .95rem; line-height: 1.6; }
-    #drop-zone p strong { color: #1a1d23; }
-    #drop-zone small { color: #8b919e; font-size: .8rem; }
-    #file-input { display: none; }
+      /* ── Drop zone ── */
+      #drop-zone {
+        border: 2px dashed #c5cad4;
+        border-radius: 12px;
+        background: #fff;
+        padding: 56px 32px;
+        text-align: center;
+        cursor: pointer;
+        transition:
+          border-color 0.2s,
+          background 0.2s;
+      }
+      #drop-zone:hover,
+      #drop-zone.over {
+        border-color: #3b82f6;
+        background: #eff6ff;
+      }
+      #drop-zone .icon {
+        font-size: 2.5rem;
+        margin-bottom: 12px;
+      }
+      #drop-zone p {
+        color: #555e6d;
+        font-size: 0.95rem;
+        line-height: 1.6;
+      }
+      #drop-zone p strong {
+        color: #1a1d23;
+      }
+      #drop-zone small {
+        color: #8b919e;
+        font-size: 0.8rem;
+      }
+      #file-input {
+        display: none;
+      }
 
-    /* ── Status ── */
-    #status {
-      margin-top: 16px;
-      font-size: .875rem;
-      color: #555e6d;
-      min-height: 1.4em;
-      text-align: center;
-    }
-    #status.error { color: #dc2626; }
+      /* ── Status ── */
+      #status {
+        margin-top: 16px;
+        font-size: 0.875rem;
+        color: #555e6d;
+        min-height: 1.4em;
+        text-align: center;
+      }
+      #status.error {
+        color: #dc2626;
+      }
 
-    /* ── File summary ── */
-    #file-summary {
-      display: none;
-      margin-top: 28px;
-      background: #fff;
-      border: 1px solid #e2e6ec;
-      border-radius: 10px;
-      padding: 18px 22px;
-      gap: 32px;
-      flex-wrap: wrap;
-      align-items: center;
-    }
-    #file-summary .meta-item { display: flex; flex-direction: column; gap: 2px; }
-    #file-summary .meta-label { font-size: .72rem; text-transform: uppercase;
-                                letter-spacing: .06em; color: #8b919e; }
-    #file-summary .meta-value { font-size: .95rem; font-weight: 600; }
+      /* ── File summary ── */
+      #file-summary {
+        display: none;
+        margin-top: 28px;
+        background: #fff;
+        border: 1px solid #e2e6ec;
+        border-radius: 10px;
+        padding: 18px 22px;
+        gap: 32px;
+        flex-wrap: wrap;
+        align-items: center;
+      }
+      #file-summary .meta-item {
+        display: flex;
+        flex-direction: column;
+        gap: 2px;
+      }
+      #file-summary .meta-label {
+        font-size: 0.72rem;
+        text-transform: uppercase;
+        letter-spacing: 0.06em;
+        color: #8b919e;
+      }
+      #file-summary .meta-value {
+        font-size: 0.95rem;
+        font-weight: 600;
+      }
 
-    /* ── Message cards ── */
-    #results { display: none; margin-top: 28px; }
-    #results h2 {
-      font-size: .78rem;
-      text-transform: uppercase;
-      letter-spacing: .07em;
-      color: #8b919e;
-      margin-bottom: 14px;
-    }
-    .cards { display: grid; grid-template-columns: repeat(auto-fill, minmax(440px, 1fr)); gap: 16px; }
+      /* ── Message cards ── */
+      #results {
+        display: none;
+        margin-top: 28px;
+      }
+      #results h2 {
+        font-size: 0.78rem;
+        text-transform: uppercase;
+        letter-spacing: 0.07em;
+        color: #8b919e;
+        margin-bottom: 14px;
+      }
+      .cards {
+        display: grid;
+        grid-template-columns: repeat(auto-fill, minmax(440px, 1fr));
+        gap: 16px;
+      }
 
-    .card {
-      background: #fff;
-      border: 1px solid #e2e6ec;
-      border-radius: 10px;
-      padding: 18px 20px;
-      transition: box-shadow .15s;
-    }
-    .card:hover { box-shadow: 0 4px 16px rgba(0,0,0,.08); }
+      .card {
+        background: #fff;
+        border: 1px solid #e2e6ec;
+        border-radius: 10px;
+        padding: 18px 20px;
+        transition: box-shadow 0.15s;
+      }
+      .card:hover {
+        box-shadow: 0 4px 16px rgba(0, 0, 0, 0.08);
+      }
 
-    .card-header { display: flex; align-items: center; gap: 10px; margin-bottom: 14px; }
-    .badge {
-      background: #1a1d23;
-      color: #fff;
-      font-family: monospace;
-      font-size: .85rem;
-      font-weight: 700;
-      padding: 4px 10px;
-      border-radius: 6px;
-      letter-spacing: .03em;
-      white-space: nowrap;
-    }
-    .card-title { font-size: .95rem; font-weight: 600; line-height: 1.3; }
+      .card-header {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        margin-bottom: 14px;
+      }
+      .badge {
+        background: #1a1d23;
+        color: #fff;
+        font-family: monospace;
+        font-size: 0.85rem;
+        font-weight: 700;
+        padding: 4px 10px;
+        border-radius: 6px;
+        letter-spacing: 0.03em;
+        white-space: nowrap;
+      }
+      .card-title {
+        font-size: 0.95rem;
+        font-weight: 600;
+        line-height: 1.3;
+      }
 
-    .card-rows { display: flex; flex-direction: column; gap: 7px; }
-    .card-row {
-      display: flex;
-      justify-content: space-between;
-      align-items: baseline;
-      font-size: .82rem;
-      gap: 8px;
-    }
-    .card-row .key { color: #8b919e; white-space: nowrap; flex-shrink: 0; }
-    .card-row .val { font-weight: 500; text-align: right; word-break: break-word; }
-    .card-divider { border: none; border-top: 1px solid #f0f1f4; margin: 10px 0; }
+      .card-rows {
+        display: flex;
+        flex-direction: column;
+        gap: 7px;
+      }
+      .card-row {
+        display: flex;
+        justify-content: space-between;
+        align-items: baseline;
+        font-size: 0.82rem;
+        gap: 8px;
+      }
+      .card-row .key {
+        color: #8b919e;
+        white-space: nowrap;
+        flex-shrink: 0;
+      }
+      .card-row .val {
+        font-weight: 500;
+        text-align: right;
+        word-break: break-word;
+      }
+      .card-divider {
+        border: none;
+        border-top: 1px solid #f0f1f4;
+        margin: 10px 0;
+      }
 
-    .btn-grid {
-      margin-top: 16px;
-      width: 100%;
-      padding: 9px 0;
-      background: #1a1d23;
-      color: #fff;
-      border: none;
-      border-radius: 7px;
-      font-size: .82rem;
-      font-weight: 500;
-      cursor: pointer;
-      letter-spacing: .02em;
-      transition: background .15s;
-    }
-    .btn-grid:hover { background: #353b4a; }
+      .btn-grid {
+        margin-top: 16px;
+        width: 100%;
+        padding: 9px 0;
+        background: #1a1d23;
+        color: #fff;
+        border: none;
+        border-radius: 7px;
+        font-size: 0.82rem;
+        font-weight: 500;
+        cursor: pointer;
+        letter-spacing: 0.02em;
+        transition: background 0.15s;
+      }
+      .btn-grid:hover {
+        background: #353b4a;
+      }
 
-    /* ══════════════════════════════════════════════════════
+      /* ══════════════════════════════════════════════════════
        GRID VIEW
     ══════════════════════════════════════════════════════ */
 
-    #view-grid { display: none; }
-    #view-grid main { max-width: 1100px; margin: 0 auto; padding: 28px 24px; }
+      #view-grid {
+        display: none;
+      }
+      #view-grid main {
+        max-width: 1100px;
+        margin: 0 auto;
+        padding: 28px 24px;
+      }
 
-    /* ── Toolbar ── */
-    #grid-toolbar {
-      display: flex;
-      align-items: center;
-      gap: 16px;
-      margin-bottom: 22px;
-      flex-wrap: wrap;
-    }
+      /* ── Toolbar ── */
+      #grid-toolbar {
+        display: flex;
+        align-items: center;
+        gap: 16px;
+        margin-bottom: 22px;
+        flex-wrap: wrap;
+      }
 
-    .btn-back {
-      background: #fff;
-      border: 1px solid #c5cad4;
-      border-radius: 7px;
-      padding: 7px 14px;
-      cursor: pointer;
-      font-size: .84rem;
-      color: #555e6d;
-      flex-shrink: 0;
-      transition: background .12s, border-color .12s;
-    }
-    .btn-back:hover { background: #f0f1f4; border-color: #8b919e; }
+      .btn-back {
+        background: #fff;
+        border: 1px solid #c5cad4;
+        border-radius: 7px;
+        padding: 7px 14px;
+        cursor: pointer;
+        font-size: 0.84rem;
+        color: #555e6d;
+        flex-shrink: 0;
+        transition:
+          background 0.12s,
+          border-color 0.12s;
+      }
+      .btn-back:hover {
+        background: #f0f1f4;
+        border-color: #8b919e;
+      }
 
-    #gv-meta { display: flex; align-items: center; gap: 10px; }
-    #gv-name { font-size: .95rem; font-weight: 600; }
-    #gv-sub  { font-size: .78rem; color: #8b919e; margin-top: 2px; }
+      #gv-meta {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+      }
+      #gv-name {
+        font-size: 0.95rem;
+        font-weight: 600;
+      }
+      #gv-sub {
+        font-size: 0.78rem;
+        color: #8b919e;
+        margin-top: 2px;
+      }
 
-    #grid-stats {
-      display: flex;
-      gap: 28px;
-      flex-wrap: wrap;
-    }
-    .stat-item { display: flex; flex-direction: column; gap: 1px; }
-    .stat-label { font-size: .68rem; text-transform: uppercase; letter-spacing: .07em; color: #8b919e; }
-    .stat-value { font-size: .88rem; font-weight: 600; font-variant-numeric: tabular-nums; }
+      #grid-stats {
+        display: flex;
+        gap: 28px;
+        flex-wrap: wrap;
+      }
+      .stat-item {
+        display: flex;
+        flex-direction: column;
+        gap: 1px;
+      }
+      .stat-label {
+        font-size: 0.68rem;
+        text-transform: uppercase;
+        letter-spacing: 0.07em;
+        color: #8b919e;
+      }
+      .stat-value {
+        font-size: 0.88rem;
+        font-weight: 600;
+        font-variant-numeric: tabular-nums;
+      }
 
-    /* ── Map area ── */
-    #map-wrap {
-      position: relative;
-      border-radius: 10px;
-      overflow: hidden;
-    }
+      /* ── Map area ── */
+      #map-wrap {
+        position: relative;
+        border-radius: 10px;
+        overflow: hidden;
+      }
 
-    #map {
-      width: 100%;
-      height: 600px;
-    }
+      #map {
+        width: 100%;
+        height: 600px;
+      }
 
-    #map-wrap:fullscreen        { width: 100%; height: 100%; }
-    #map-wrap:fullscreen #map   { height: 100%; }
-    /* Safari */
-    #map-wrap:-webkit-full-screen        { width: 100%; height: 100%; }
-    #map-wrap:-webkit-full-screen #map   { height: 100%; }
+      #map-wrap:fullscreen {
+        width: 100%;
+        height: 100%;
+      }
+      #map-wrap:fullscreen #map {
+        height: 100%;
+      }
+      /* Safari */
+      #map-wrap:-webkit-full-screen {
+        width: 100%;
+        height: 100%;
+      }
+      #map-wrap:-webkit-full-screen #map {
+        height: 100%;
+      }
 
-    #map-tooltip {
-      position: absolute;
-      z-index: 10;
-      pointer-events: none;
-      background: rgba(0, 0, 0, .72);
-      color: #fff;
-      padding: 5px 9px;
-      border-radius: 5px;
-      font-size: .78rem;
-      white-space: nowrap;
-    }
+      #map-tooltip {
+        position: absolute;
+        z-index: 10;
+        pointer-events: none;
+        background: rgba(0, 0, 0, 0.72);
+        color: #fff;
+        padding: 5px 9px;
+        border-radius: 5px;
+        font-size: 0.78rem;
+        white-space: nowrap;
+      }
 
-    /* ── Color scale ── */
-    #colorscale {
-      display: none;
-      align-items: center;
-      gap: 10px;
-      margin-top: 12px;
-      font-size: .76rem;
-      color: #555e6d;
-      font-variant-numeric: tabular-nums;
-    }
-    #cs-bar {
-      flex: 1;
-      height: 10px;
-      border-radius: 5px;
-    }
-    #cs-unit { color: #8b919e; margin-left: 4px; }
+      /* ── Color scale ── */
+      #colorscale {
+        display: none;
+        align-items: center;
+        gap: 10px;
+        margin-top: 12px;
+        font-size: 0.76rem;
+        color: #555e6d;
+        font-variant-numeric: tabular-nums;
+      }
+      #cs-bar {
+        flex: 1;
+        height: 10px;
+        border-radius: 5px;
+      }
+      #cs-unit {
+        color: #8b919e;
+        margin-left: 4px;
+      }
 
-    /* ── Palette selector ── */
-    #palette-ctrl {
-      display: flex;
-      align-items: center;
-      gap: 6px;
-      font-size: .82rem;
-      color: #555e6d;
-      margin-left: auto;
-    }
-    #palette-select {
-      background: #fff;
-      border: 1px solid #c5cad4;
-      border-radius: 7px;
-      padding: 6px 10px;
-      font-size: .82rem;
-      color: #1a1d23;
-      cursor: pointer;
-      transition: border-color .12s;
-    }
-    #palette-select:hover { border-color: #8b919e; }
+      /* ── Palette selector ── */
+      #palette-ctrl {
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        font-size: 0.82rem;
+        color: #555e6d;
+        margin-left: auto;
+      }
+      #palette-select {
+        background: #fff;
+        border: 1px solid #c5cad4;
+        border-radius: 7px;
+        padding: 6px 10px;
+        font-size: 0.82rem;
+        color: #1a1d23;
+        cursor: pointer;
+        transition: border-color 0.12s;
+      }
+      #palette-select:hover {
+        border-color: #8b919e;
+      }
 
-    /* ══════════════════════════════════════════════════════
+      /* ══════════════════════════════════════════════════════
        AROME SHORTCUT (home)
     ══════════════════════════════════════════════════════ */
-    #arome-shortcut {
-      margin-top: 24px;
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-      gap: 6px;
-    }
-    #btn-arome {
-      background: #1a1d23;
-      color: #fff;
-      border: none;
-      border-radius: 8px;
-      padding: 11px 28px;
-      font-size: .9rem;
-      font-weight: 600;
-      cursor: pointer;
-      letter-spacing: .02em;
-      transition: background .15s;
-    }
-    #btn-arome:hover { background: #353b4a; }
-    #arome-shortcut small { font-size: .78rem; color: #8b919e; }
+      #arome-shortcut {
+        margin-top: 24px;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        gap: 6px;
+      }
+      #btn-arome {
+        background: #1a1d23;
+        color: #fff;
+        border: none;
+        border-radius: 8px;
+        padding: 11px 28px;
+        font-size: 0.9rem;
+        font-weight: 600;
+        cursor: pointer;
+        letter-spacing: 0.02em;
+        transition: background 0.15s;
+      }
+      #btn-arome:hover {
+        background: #353b4a;
+      }
+      #arome-shortcut small {
+        font-size: 0.78rem;
+        color: #8b919e;
+      }
 
-    /* ══════════════════════════════════════════════════════
+      /* ══════════════════════════════════════════════════════
        AROME VIEW — variable selection + download
     ══════════════════════════════════════════════════════ */
-    #view-arome main { max-width: 960px; margin: 0 auto; padding: 32px 24px; }
+      #view-arome main {
+        max-width: 960px;
+        margin: 0 auto;
+        padding: 32px 24px;
+      }
 
-    #arome-step-header {
-      display: flex;
-      align-items: center;
-      gap: 14px;
-      margin-bottom: 24px;
-    }
-    #arome-step-header h2 {
-      font-size: .78rem;
-      text-transform: uppercase;
-      letter-spacing: .07em;
-      color: #8b919e;
-      margin: 0;
-    }
-    #arome-var-cards {
-      display: grid;
-      grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
-      gap: 12px;
-    }
-    .arome-var-card {
-      background: #fff;
-      border: 2px solid #e2e6ec;
-      border-radius: 10px;
-      padding: 14px 16px;
-      cursor: pointer;
-      transition: border-color .15s, background .15s;
-    }
-    .arome-var-card:hover { border-color: #3b82f6; }
-    .arome-var-card.selected { border-color: #3b82f6; background: #eff6ff; }
-    .arome-var-card .vc-short {
-      font-family: monospace;
-      font-size: .8rem;
-      font-weight: 700;
-      background: #1a1d23;
-      color: #fff;
-      padding: 2px 7px;
-      border-radius: 4px;
-      display: inline-block;
-      margin-bottom: 8px;
-    }
-    .arome-var-card .vc-name { font-size: .88rem; font-weight: 600; margin-bottom: 2px; }
-    .arome-var-card .vc-meta { font-size: .74rem; color: #8b919e; }
+      #arome-step-header {
+        display: flex;
+        align-items: center;
+        gap: 14px;
+        margin-bottom: 24px;
+      }
+      #arome-step-header h2 {
+        font-size: 0.78rem;
+        text-transform: uppercase;
+        letter-spacing: 0.07em;
+        color: #8b919e;
+        margin: 0;
+      }
+      #arome-var-cards {
+        display: grid;
+        grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+        gap: 12px;
+      }
+      .arome-var-card {
+        background: #fff;
+        border: 2px solid #e2e6ec;
+        border-radius: 10px;
+        padding: 14px 16px;
+        cursor: pointer;
+        transition:
+          border-color 0.15s,
+          background 0.15s;
+      }
+      .arome-var-card:hover {
+        border-color: #3b82f6;
+      }
+      .arome-var-card.selected {
+        border-color: #3b82f6;
+        background: #eff6ff;
+      }
+      .arome-var-card .vc-short {
+        font-family: monospace;
+        font-size: 0.8rem;
+        font-weight: 700;
+        background: #1a1d23;
+        color: #fff;
+        padding: 2px 7px;
+        border-radius: 4px;
+        display: inline-block;
+        margin-bottom: 8px;
+      }
+      .arome-var-card .vc-name {
+        font-size: 0.88rem;
+        font-weight: 600;
+        margin-bottom: 2px;
+      }
+      .arome-var-card .vc-meta {
+        font-size: 0.74rem;
+        color: #8b919e;
+      }
 
-    #arome-select-footer { margin-top: 20px; }
-    #btn-arome-load {
-      padding: 10px 24px;
-      background: #1a1d23;
-      color: #fff;
-      border: none;
-      border-radius: 7px;
-      font-size: .88rem;
-      font-weight: 500;
-      cursor: pointer;
-      transition: background .15s;
-    }
-    #btn-arome-load:disabled { opacity: .4; cursor: not-allowed; }
-    #btn-arome-load:not(:disabled):hover { background: #353b4a; }
+      #arome-select-footer {
+        margin-top: 20px;
+      }
+      #btn-arome-load {
+        padding: 10px 24px;
+        background: #1a1d23;
+        color: #fff;
+        border: none;
+        border-radius: 7px;
+        font-size: 0.88rem;
+        font-weight: 500;
+        cursor: pointer;
+        transition: background 0.15s;
+      }
+      #btn-arome-load:disabled {
+        opacity: 0.4;
+        cursor: not-allowed;
+      }
+      #btn-arome-load:not(:disabled):hover {
+        background: #353b4a;
+      }
 
-    #arome-dl-status { font-size: .88rem; color: #555e6d; margin-bottom: 16px; }
-    #arome-dl-bars {
-      display: grid;
-      grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
-      gap: 8px;
-    }
-    .arome-dl-item {
-      background: #fff;
-      border: 1px solid #e2e6ec;
-      border-radius: 8px;
-      padding: 8px 12px;
-    }
-    .arome-dl-label {
-      font-size: .74rem;
-      color: #555e6d;
-      margin-bottom: 5px;
-      font-variant-numeric: tabular-nums;
-    }
-    .arome-dl-track { height: 4px; background: #e2e6ec; border-radius: 2px; overflow: hidden; }
-    .arome-dl-fill  { height: 100%; background: #3b82f6; width: 0%; transition: width .1s; }
-    .arome-dl-item.done .arome-dl-fill { background: #22c55e; width: 100% !important; }
+      #arome-dl-status {
+        font-size: 0.88rem;
+        color: #555e6d;
+        margin-bottom: 16px;
+      }
+      #arome-dl-bars {
+        display: grid;
+        grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+        gap: 8px;
+      }
+      .arome-dl-item {
+        background: #fff;
+        border: 1px solid #e2e6ec;
+        border-radius: 8px;
+        padding: 8px 12px;
+      }
+      .arome-dl-label {
+        font-size: 0.74rem;
+        color: #555e6d;
+        margin-bottom: 5px;
+        font-variant-numeric: tabular-nums;
+      }
+      .arome-dl-track {
+        height: 4px;
+        background: #e2e6ec;
+        border-radius: 2px;
+        overflow: hidden;
+      }
+      .arome-dl-fill {
+        height: 100%;
+        background: #3b82f6;
+        width: 0%;
+        transition: width 0.1s;
+      }
+      .arome-dl-item.done .arome-dl-fill {
+        background: #22c55e;
+        width: 100% !important;
+      }
 
-    /* ══════════════════════════════════════════════════════
+      /* ══════════════════════════════════════════════════════
        AROME PLAYER TOOLBAR (inside #view-grid)
     ══════════════════════════════════════════════════════ */
-    #arome-player-toolbar {
-      display: flex;
-      align-items: center;
-      gap: 16px;
-      margin-bottom: 22px;
-      flex-wrap: wrap;
-    }
-    #arome-slider-wrap {
-      display: flex;
-      align-items: center;
-      gap: 10px;
-      flex: 1;
-      min-width: 200px;
-    }
-    #arome-slider { flex: 1; cursor: pointer; }
-    #arome-hour-label {
-      font-family: monospace;
-      font-size: .88rem;
-      font-weight: 700;
-      min-width: 44px;
-      white-space: nowrap;
-    }
-    #arome-valid-time { font-size: .76rem; color: #8b919e; white-space: nowrap; }
-  </style>
-</head>
-<body>
+      #arome-player-toolbar {
+        display: flex;
+        align-items: center;
+        gap: 16px;
+        margin-bottom: 22px;
+        flex-wrap: wrap;
+      }
+      #arome-slider-wrap {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        flex: 1;
+        min-width: 200px;
+      }
+      #arome-slider {
+        flex: 1;
+        cursor: pointer;
+      }
+      #arome-hour-label {
+        font-family: monospace;
+        font-size: 0.88rem;
+        font-weight: 700;
+        min-width: 44px;
+        white-space: nowrap;
+      }
+      #arome-valid-time {
+        font-size: 0.76rem;
+        color: #8b919e;
+        white-space: nowrap;
+      }
+    </style>
+  </head>
+  <body>
+    <header>
+      <h1>Weather forecast</h1>
+      <span>Source: Météo France AROME</span>
+    </header>
 
-<header>
-  <h1>Weather forecast (Météo France AROME)</h1>
-  <span>browser-native · no server required</span>
-</header>
-
-<!-- ══════════════════════════════════════════════════════
+    <!-- ══════════════════════════════════════════════════════
      HOME VIEW
 ══════════════════════════════════════════════════════ -->
-<div id="view-home">
-  <main>
-    <div id="drop-zone" role="button" tabindex="0" aria-label="Upload a GRIB2 file">
-      <div class="icon">🌐</div>
-      <p><strong>Drop a GRIB2 file here</strong><br>or click to select</p>
-      <br>
-      <small>.grib2 / .grib</small>
-      <input type="file" id="file-input" accept=".grib2,.grib">
-    </div>
-    <div id="status"></div>
+    <div id="view-home">
+      <main>
+        <div
+          id="drop-zone"
+          role="button"
+          tabindex="0"
+          aria-label="Upload a GRIB2 file"
+        >
+          <div class="icon">🌐</div>
+          <p><strong>Drop a GRIB2 file here</strong><br />or click to select</p>
+          <br />
+          <small>.grib2 / .grib</small>
+          <input type="file" id="file-input" accept=".grib2,.grib" />
+        </div>
+        <div id="status"></div>
 
-    <div id="arome-shortcut">
-      <button id="btn-arome">Données AROME en direct</button>
-      <small>Dernière run disponible · Météo-France SP1 · 0,01°</small>
+        <div id="arome-shortcut">
+          <button id="btn-arome">Données AROME en direct</button>
+          <small>Météo-France SP1 · 0,01° (last available run)</small>
+        </div>
+
+        <div id="file-summary">
+          <div class="meta-item">
+            <span class="meta-label">File</span>
+            <span class="meta-value" id="s-name">—</span>
+          </div>
+          <div class="meta-item">
+            <span class="meta-label">Size</span>
+            <span class="meta-value" id="s-size">—</span>
+          </div>
+          <div class="meta-item">
+            <span class="meta-label">Messages</span>
+            <span class="meta-value" id="s-count">—</span>
+          </div>
+          <div class="meta-item">
+            <span class="meta-label">Centre</span>
+            <span class="meta-value" id="s-centre">—</span>
+          </div>
+          <div class="meta-item">
+            <span class="meta-label">Reference time</span>
+            <span class="meta-value" id="s-reftime">—</span>
+          </div>
+        </div>
+
+        <div id="results">
+          <h2>Variables</h2>
+          <div class="cards" id="cards"></div>
+        </div>
+      </main>
     </div>
 
-    <div id="file-summary">
-      <div class="meta-item">
-        <span class="meta-label">File</span>
-        <span class="meta-value" id="s-name">—</span>
-      </div>
-      <div class="meta-item">
-        <span class="meta-label">Size</span>
-        <span class="meta-value" id="s-size">—</span>
-      </div>
-      <div class="meta-item">
-        <span class="meta-label">Messages</span>
-        <span class="meta-value" id="s-count">—</span>
-      </div>
-      <div class="meta-item">
-        <span class="meta-label">Centre</span>
-        <span class="meta-value" id="s-centre">—</span>
-      </div>
-      <div class="meta-item">
-        <span class="meta-label">Reference time</span>
-        <span class="meta-value" id="s-reftime">—</span>
-      </div>
-    </div>
-
-    <div id="results">
-      <h2>Variables</h2>
-      <div class="cards" id="cards"></div>
-    </div>
-  </main>
-</div>
-
-<!-- ══════════════════════════════════════════════════════
+    <!-- ══════════════════════════════════════════════════════
      AROME VIEW
 ══════════════════════════════════════════════════════ -->
-<div id="view-arome" style="display:none">
-  <main>
-    <!-- Step 1 : variable selection -->
-    <div id="arome-step-select">
-      <div id="arome-step-header">
-        <button class="btn-back" id="arome-home-btn">← Accueil</button>
-        <h2>Choisir un paramètre — AROME SP1</h2>
-      </div>
-      <div id="arome-var-cards"></div>
-      <div id="arome-select-footer">
-        <button id="btn-arome-load" disabled>Télécharger la run</button>
-      </div>
+    <div id="view-arome" style="display: none">
+      <main>
+        <!-- Step 1 : variable selection -->
+        <div id="arome-step-select">
+          <div id="arome-step-header">
+            <button class="btn-back" id="arome-home-btn">← Accueil</button>
+            <h2>Choisir un paramètre — AROME SP1</h2>
+          </div>
+          <div id="arome-var-cards"></div>
+          <div id="arome-select-footer">
+            <button id="btn-arome-load" disabled>Télécharger la run</button>
+          </div>
+        </div>
+
+        <!-- Step 2 : download progress -->
+        <div id="arome-step-dl" style="display: none">
+          <p id="arome-dl-status">Récupération de la liste des fichiers…</p>
+          <div id="arome-dl-bars"></div>
+        </div>
+      </main>
     </div>
 
-    <!-- Step 2 : download progress -->
-    <div id="arome-step-dl" style="display:none">
-      <p id="arome-dl-status">Récupération de la liste des fichiers…</p>
-      <div id="arome-dl-bars"></div>
-    </div>
-  </main>
-</div>
-
-<!-- ══════════════════════════════════════════════════════
+    <!-- ══════════════════════════════════════════════════════
      GRID VIEW
 ══════════════════════════════════════════════════════ -->
-<div id="view-grid">
-  <main>
-    <div id="grid-toolbar">
-      <button class="btn-back" id="back-btn">← Variables</button>
-      <div id="gv-meta">
-        <span class="badge" id="gv-badge"></span>
-        <div>
-          <div id="gv-name"></div>
-          <div id="gv-sub"></div>
+    <div id="view-grid">
+      <main>
+        <div id="grid-toolbar">
+          <button class="btn-back" id="back-btn">← Variables</button>
+          <div id="gv-meta">
+            <span class="badge" id="gv-badge"></span>
+            <div>
+              <div id="gv-name"></div>
+              <div id="gv-sub"></div>
+            </div>
+          </div>
+          <div id="grid-stats">
+            <div class="stat-item">
+              <span class="stat-label">Min</span>
+              <span class="stat-value" id="gv-min">—</span>
+            </div>
+            <div class="stat-item">
+              <span class="stat-label">Max</span>
+              <span class="stat-value" id="gv-max">—</span>
+            </div>
+            <div class="stat-item">
+              <span class="stat-label">Mean</span>
+              <span class="stat-value" id="gv-mean">—</span>
+            </div>
+            <div class="stat-item">
+              <span class="stat-label">Valid pts</span>
+              <span class="stat-value" id="gv-valid">—</span>
+            </div>
+          </div>
+          <div id="palette-ctrl">
+            <label for="palette-select">Palette</label>
+            <select id="palette-select">
+              <optgroup label="Perceptually uniform">
+                <option value="Plasma" selected>Plasma</option>
+                <option value="Viridis">Viridis</option>
+                <option value="Magma">Magma</option>
+                <option value="Inferno">Inferno</option>
+              </optgroup>
+              <optgroup label="Diverging">
+                <option value="Spectral">Spectral</option>
+                <option value="RdBu">RdBu</option>
+                <option value="RdYlBu">RdYlBu</option>
+              </optgroup>
+              <optgroup label="Sequential">
+                <option value="YlOrRd">YlOrRd</option>
+                <option value="OrRd">OrRd</option>
+                <option value="Blues">Blues</option>
+                <option value="YlGnBu">YlGnBu</option>
+              </optgroup>
+            </select>
+          </div>
         </div>
-      </div>
-      <div id="grid-stats">
-        <div class="stat-item">
-          <span class="stat-label">Min</span>
-          <span class="stat-value" id="gv-min">—</span>
+
+        <!-- AROME player toolbar (shown instead of #grid-toolbar in AROME mode) -->
+        <div id="arome-player-toolbar" style="display: none">
+          <button class="btn-back" id="arome-back-btn">← Accueil</button>
+          <span class="badge" id="arome-player-badge"></span>
+          <div id="arome-slider-wrap">
+            <span id="arome-hour-label">+00H</span>
+            <input type="range" id="arome-slider" min="0" step="1" value="0" />
+            <span id="arome-valid-time"></span>
+          </div>
+          <div id="palette-ctrl-arome" class="palette-ctrl-shared">
+            <label for="palette-select-arome">Palette</label>
+            <select id="palette-select-arome" class="palette-select-el">
+              <optgroup label="Perceptually uniform">
+                <option value="Plasma" selected>Plasma</option>
+                <option value="Viridis">Viridis</option>
+                <option value="Magma">Magma</option>
+                <option value="Inferno">Inferno</option>
+              </optgroup>
+              <optgroup label="Diverging">
+                <option value="Spectral">Spectral</option>
+                <option value="RdBu">RdBu</option>
+                <option value="RdYlBu">RdYlBu</option>
+              </optgroup>
+              <optgroup label="Sequential">
+                <option value="YlOrRd">YlOrRd</option>
+                <option value="OrRd">OrRd</option>
+                <option value="Blues">Blues</option>
+                <option value="YlGnBu">YlGnBu</option>
+              </optgroup>
+            </select>
+          </div>
         </div>
-        <div class="stat-item">
-          <span class="stat-label">Max</span>
-          <span class="stat-value" id="gv-max">—</span>
+
+        <div id="map-wrap">
+          <div id="map"></div>
+          <div id="map-tooltip" hidden></div>
         </div>
-        <div class="stat-item">
-          <span class="stat-label">Mean</span>
-          <span class="stat-value" id="gv-mean">—</span>
+
+        <div id="colorscale">
+          <span id="cs-min"></span>
+          <div id="cs-bar"></div>
+          <span id="cs-max"></span>
+          <span id="cs-unit"></span>
         </div>
-        <div class="stat-item">
-          <span class="stat-label">Valid pts</span>
-          <span class="stat-value" id="gv-valid">—</span>
-        </div>
-      </div>
-      <div id="palette-ctrl">
-        <label for="palette-select">Palette</label>
-        <select id="palette-select">
-          <optgroup label="Perceptually uniform">
-            <option value="Plasma" selected>Plasma</option>
-            <option value="Viridis">Viridis</option>
-            <option value="Magma">Magma</option>
-            <option value="Inferno">Inferno</option>
-          </optgroup>
-          <optgroup label="Diverging">
-            <option value="Spectral">Spectral</option>
-            <option value="RdBu">RdBu</option>
-            <option value="RdYlBu">RdYlBu</option>
-          </optgroup>
-          <optgroup label="Sequential">
-            <option value="YlOrRd">YlOrRd</option>
-            <option value="OrRd">OrRd</option>
-            <option value="Blues">Blues</option>
-            <option value="YlGnBu">YlGnBu</option>
-          </optgroup>
-        </select>
-      </div>
+      </main>
     </div>
 
-    <!-- AROME player toolbar (shown instead of #grid-toolbar in AROME mode) -->
-    <div id="arome-player-toolbar" style="display:none">
-      <button class="btn-back" id="arome-back-btn">← Accueil</button>
-      <span class="badge" id="arome-player-badge"></span>
-      <div id="arome-slider-wrap">
-        <span id="arome-hour-label">+00H</span>
-        <input type="range" id="arome-slider" min="0" step="1" value="0">
-        <span id="arome-valid-time"></span>
-      </div>
-      <div id="palette-ctrl-arome" class="palette-ctrl-shared">
-        <label for="palette-select-arome">Palette</label>
-        <select id="palette-select-arome" class="palette-select-el">
-          <optgroup label="Perceptually uniform">
-            <option value="Plasma" selected>Plasma</option>
-            <option value="Viridis">Viridis</option>
-            <option value="Magma">Magma</option>
-            <option value="Inferno">Inferno</option>
-          </optgroup>
-          <optgroup label="Diverging">
-            <option value="Spectral">Spectral</option>
-            <option value="RdBu">RdBu</option>
-            <option value="RdYlBu">RdYlBu</option>
-          </optgroup>
-          <optgroup label="Sequential">
-            <option value="YlOrRd">YlOrRd</option>
-            <option value="OrRd">OrRd</option>
-            <option value="Blues">Blues</option>
-            <option value="YlGnBu">YlGnBu</option>
-          </optgroup>
-        </select>
-      </div>
-    </div>
+    <script type="module">
+      import maplibregl from "https://esm.sh/maplibre-gl@4";
+      import chroma from "https://esm.sh/chroma-js@2.4.2";
+      import {
+        iterateGRIB2Messages,
+        decodeGRIB2,
+        MISSING_VALUE,
+      } from "./src/index.js";
+      import { computeStats } from "./src/stats.js";
+      import {
+        CENTRES,
+        GENERATING_PROCESS,
+        fmtRefTime,
+        fmtLevel,
+        fmtValidTime,
+      } from "./src/wmo-tables.js";
 
-    <div id="map-wrap">
-      <div id="map"></div>
-      <div id="map-tooltip" hidden></div>
-    </div>
+      // ── AROME SP1 variable catalogue (fixed list from real SP1 file) ──────────────
+      const SP1_VARIABLES = [
+        { shortName: "t", name: "Température", units: "K", level: "2 m" },
+        { shortName: "r", name: "Humidité relative", units: "%", level: "2 m" },
+        { shortName: "u", name: "Vent U", units: "m s⁻¹", level: "10 m" },
+        { shortName: "v", name: "Vent V", units: "m s⁻¹", level: "10 m" },
+        { shortName: "ugust", name: "Rafale U", units: "m s⁻¹", level: "10 m" },
+        { shortName: "vgust", name: "Rafale V", units: "m s⁻¹", level: "10 m" },
+      ];
 
-    <div id="colorscale">
-      <span id="cs-min"></span>
-      <div id="cs-bar"></div>
-      <span id="cs-max"></span>
-      <span id="cs-unit"></span>
-    </div>
-  </main>
-</div>
+      // ── State ─────────────────────────────────────────────────────────────────────
+      let fileState = null; // { messages: Array }
+      let gridState = null; // { values, min, range, grid, product }
+      let currentPalette = "Plasma";
+      let map = null; // MapLibre instance (created once, reused)
+      let heatCanvas = null; // offscreen canvas for heatmap rendering
+      let aromeState = null; // { resources, buffers, decoded, decodedOrder, variable, mapReady }
+      let aromeSelVar = SP1_VARIABLES[0].shortName; // selected variable before download
+      let isDecoding = false;
 
-<script type="module">
-import maplibregl from 'https://esm.sh/maplibre-gl@4';
-import chroma from 'https://esm.sh/chroma-js@2.4.2';
-import { iterateGRIB2Messages, decodeGRIB2, MISSING_VALUE } from './src/index.js';
-import { computeStats } from './src/stats.js';
-import { CENTRES, GENERATING_PROCESS, fmtRefTime, fmtLevel, fmtValidTime } from './src/wmo-tables.js';
+      // ── Helpers ───────────────────────────────────────────────────────────────────
 
-// ── AROME SP1 variable catalogue (fixed list from real SP1 file) ──────────────
-const SP1_VARIABLES = [
-  { shortName: 't',     name: 'Température',       units: 'K',     level: '2 m'  },
-  { shortName: 'r',     name: 'Humidité relative', units: '%',     level: '2 m'  },
-  { shortName: 'u',     name: 'Vent U',            units: 'm s⁻¹', level: '10 m' },
-  { shortName: 'v',     name: 'Vent V',            units: 'm s⁻¹', level: '10 m' },
-  { shortName: 'ugust', name: 'Rafale U',          units: 'm s⁻¹', level: '10 m' },
-  { shortName: 'vgust', name: 'Rafale V',          units: 'm s⁻¹', level: '10 m' },
-];
+      const fmtNum = (v, d = 4) => v.toFixed(d);
 
-// ── State ─────────────────────────────────────────────────────────────────────
-let fileState      = null; // { messages: Array }
-let gridState      = null; // { values, min, range, grid, product }
-let currentPalette = 'Plasma';
-let map            = null; // MapLibre instance (created once, reused)
-let heatCanvas     = null; // offscreen canvas for heatmap rendering
-let aromeState     = null; // { resources, buffers, decoded, decodedOrder, variable, mapReady }
-let aromeSelVar    = SP1_VARIABLES[0].shortName; // selected variable before download
-let isDecoding     = false;
-
-// ── Helpers ───────────────────────────────────────────────────────────────────
-
-const fmtNum = (v, d = 4) => v.toFixed(d);
-
-function fmtSize(b) {
-  return b >= 1e6 ? (b / 1e6).toFixed(1) + ' MB' : (b / 1e3).toFixed(0) + ' KB';
-}
-function fmtGrid(g) {
-  return `${g.ni} × ${g.nj} pts · `
-    + `${g.latitudeOfLastPoint}°–${g.latitudeOfFirstPoint}°N · `
-    + `${g.longitudeOfFirstPoint}°–${g.longitudeOfLastPoint}°E`;
-}
-function code(table, v) { return table[v] ? `${table[v]} (${v})` : String(v); }
-
-// ── Colormap (chroma-js) ──────────────────────────────────────────────────────
-
-const CUSTOM_SCALES = {
-  Plasma:  ['#0d0887', '#7e03a8', '#cb4679', '#f89441', '#f0f921'],
-  Magma:   ['#000004', '#51127c', '#b73779', '#fc8961', '#fcfdbf'],
-  Inferno: ['#000004', '#420a68', '#932667', '#dd513a', '#fcffa4'],
-};
-
-function makeScale(paletteName) {
-  return chroma.scale(CUSTOM_SCALES[paletteName] ?? chroma.brewer[paletteName]);
-}
-
-function buildLUT(paletteName) {
-  const sc  = makeScale(paletteName);
-  const lut = new Uint8Array(256 * 3);
-  for (let i = 0; i < 256; i++) {
-    const [r, g, b] = sc(i / 255).rgb();
-    lut[i * 3]     = r;
-    lut[i * 3 + 1] = g;
-    lut[i * 3 + 2] = b;
-  }
-  return lut;
-}
-
-// Mercator helpers (latitude in degrees)
-const mercatorY  = lat => Math.log(Math.tan(Math.PI / 4 + lat * Math.PI / 360));
-const invMercatorY = my => (2 * Math.atan(Math.exp(my)) - Math.PI / 2) * 180 / Math.PI;
-
-// Compute the Mercator-proportional canvas height for a given grid.
-// The canvas width equals grid.ni; height is chosen so that one pixel ≈ same
-// arc-length in both x and y when viewed in Web Mercator.
-function mercatorCanvasHeight(grid) {
-  const { ni, latitudeOfFirstPoint: la1, latitudeOfLastPoint: la2,
-          longitudeOfFirstPoint: lo1, longitudeOfLastPoint: lo2 } = grid;
-  const spanY = mercatorY(la1) - mercatorY(la2);
-  const spanX = (lo2 - lo1) * Math.PI / 180;
-  return Math.round(ni * spanY / spanX);
-}
-
-// Render heatmap into the offscreen heatCanvas, then notify MapLibre.
-// The canvas is pre-warped to Web Mercator: each row is inverse-Mercator'd
-// back to latitude so the image aligns perfectly with the basemap.
-function renderHeatmap() {
-  const { values, min, range, grid } = gridState;
-  const { ni, nj, latitudeOfFirstPoint: la1, latitudeOfLastPoint: la2, dj } = grid;
-  const lut  = buildLUT(currentPalette);
-  const outW = heatCanvas.width;   // = ni
-  const outH = heatCanvas.height;  // Mercator-proportional
-  const ctx  = heatCanvas.getContext('2d');
-  const img  = ctx.createImageData(outW, outH);
-  const px   = img.data;
-
-  const my1  = mercatorY(la1);
-  const mySpan = my1 - mercatorY(la2);
-
-  for (let py = 0; py < outH; py++) {
-    // Map output row → Mercator Y → geographic latitude
-    const lat = invMercatorY(my1 - (py / outH) * mySpan);
-    if (lat > la1 || lat < la2) continue;
-
-    const row    = Math.min(Math.max(Math.round((la1 - lat) / dj), 0), nj - 1);
-    const rowOff = row * ni;
-    const imgRow = py * outW;
-
-    for (let col = 0; col < outW; col++) {
-      const off = (imgRow + col) * 4;
-      const v   = values[rowOff + col];
-      if (v <= MISSING_VALUE) {
-        px[off] = px[off+1] = px[off+2] = 180;
-        px[off+3] = 100;
-      } else {
-        const li  = Math.min(Math.round(((v - min) / range) * 255), 255) * 3;
-        px[off]   = lut[li];
-        px[off+1] = lut[li+1];
-        px[off+2] = lut[li+2];
-        px[off+3] = 255;
+      function fmtSize(b) {
+        return b >= 1e6
+          ? (b / 1e6).toFixed(1) + " MB"
+          : (b / 1e3).toFixed(0) + " KB";
       }
-    }
-  }
-  ctx.putImageData(img, 0, 0);
+      function fmtGrid(g) {
+        return (
+          `${g.ni} × ${g.nj} pts · ` +
+          `${g.latitudeOfLastPoint}°–${g.latitudeOfFirstPoint}°N · ` +
+          `${g.longitudeOfFirstPoint}°–${g.longitudeOfLastPoint}°E`
+        );
+      }
+      function code(table, v) {
+        return table[v] ? `${table[v]} (${v})` : String(v);
+      }
 
-  // Update legend bar
-  const sc    = makeScale(currentPalette);
-  const stops = Array.from({length: 8}, (_, i) => sc(i / 7).css()).join(', ');
-  document.getElementById('cs-bar').style.background =
-    `linear-gradient(to right, ${stops})`;
+      // ── Colormap (chroma-js) ──────────────────────────────────────────────────────
 
-  if (map) map.triggerRepaint();
-}
+      const CUSTOM_SCALES = {
+        Plasma: ["#0d0887", "#7e03a8", "#cb4679", "#f89441", "#f0f921"],
+        Magma: ["#000004", "#51127c", "#b73779", "#fc8961", "#fcfdbf"],
+        Inferno: ["#000004", "#420a68", "#932667", "#dd513a", "#fcffa4"],
+      };
 
-// ── Hover tooltip ─────────────────────────────────────────────────────────────
+      function makeScale(paletteName) {
+        return chroma.scale(
+          CUSTOM_SCALES[paletteName] ?? chroma.brewer[paletteName],
+        );
+      }
 
-function setupHoverTooltip() {
-  const tooltip   = document.getElementById('map-tooltip');
-  const mapCanvas = map.getCanvas();
+      function buildLUT(paletteName) {
+        const sc = makeScale(paletteName);
+        const lut = new Uint8Array(256 * 3);
+        for (let i = 0; i < 256; i++) {
+          const [r, g, b] = sc(i / 255).rgb();
+          lut[i * 3] = r;
+          lut[i * 3 + 1] = g;
+          lut[i * 3 + 2] = b;
+        }
+        return lut;
+      }
 
-  map.on('mousemove', e => {
-    if (!gridState) return;
-    const { lat, lng } = e.lngLat;
-    const { grid, values, product } = gridState;
-    const { ni, latitudeOfFirstPoint: la1, longitudeOfFirstPoint: lo1,
-            latitudeOfLastPoint: la2, longitudeOfLastPoint: lo2, di, dj } = grid;
+      // Mercator helpers (latitude in degrees)
+      const mercatorY = (lat) =>
+        Math.log(Math.tan(Math.PI / 4 + (lat * Math.PI) / 360));
+      const invMercatorY = (my) =>
+        ((2 * Math.atan(Math.exp(my)) - Math.PI / 2) * 180) / Math.PI;
 
-    // Outside domain
-    if (lat > la1 || lat < la2 || lng < lo1 || lng > lo2) {
-      tooltip.hidden = true;
-      mapCanvas.style.cursor = '';
-      return;
-    }
+      // Compute the Mercator-proportional canvas height for a given grid.
+      // The canvas width equals grid.ni; height is chosen so that one pixel ≈ same
+      // arc-length in both x and y when viewed in Web Mercator.
+      function mercatorCanvasHeight(grid) {
+        const {
+          ni,
+          latitudeOfFirstPoint: la1,
+          latitudeOfLastPoint: la2,
+          longitudeOfFirstPoint: lo1,
+          longitudeOfLastPoint: lo2,
+        } = grid;
+        const spanY = mercatorY(la1) - mercatorY(la2);
+        const spanX = ((lo2 - lo1) * Math.PI) / 180;
+        return Math.round((ni * spanY) / spanX);
+      }
 
-    const row = Math.round((la1 - lat) / dj);
-    const col = Math.round((lng  - lo1) / di);
-    const idx = row * ni + col;
-    const val = (idx >= 0 && idx < values.length) ? values[idx] : MISSING_VALUE;
+      // Render heatmap into the offscreen heatCanvas, then notify MapLibre.
+      // The canvas is pre-warped to Web Mercator: each row is inverse-Mercator'd
+      // back to latitude so the image aligns perfectly with the basemap.
+      function renderHeatmap() {
+        const { values, min, range, grid } = gridState;
+        const {
+          ni,
+          nj,
+          latitudeOfFirstPoint: la1,
+          latitudeOfLastPoint: la2,
+          dj,
+        } = grid;
+        const lut = buildLUT(currentPalette);
+        const outW = heatCanvas.width; // = ni
+        const outH = heatCanvas.height; // Mercator-proportional
+        const ctx = heatCanvas.getContext("2d");
+        const img = ctx.createImageData(outW, outH);
+        const px = img.data;
 
-    if (val <= MISSING_VALUE) {
-      tooltip.hidden = true;
-      mapCanvas.style.cursor = 'default';
-      return;
-    }
+        const my1 = mercatorY(la1);
+        const mySpan = my1 - mercatorY(la2);
 
-    mapCanvas.style.cursor = 'crosshair';
-    tooltip.hidden = false;
-    tooltip.textContent = `${product.name} : ${val.toFixed(2)} ${product.units}`;
-    const wrap = document.getElementById('map-wrap');
-    const rect = wrap.getBoundingClientRect();
-    tooltip.style.left = (e.originalEvent.clientX - rect.left + 14) + 'px';
-    tooltip.style.top  = (e.originalEvent.clientY - rect.top  - 36) + 'px';
-  });
+        for (let py = 0; py < outH; py++) {
+          // Map output row → Mercator Y → geographic latitude
+          const lat = invMercatorY(my1 - (py / outH) * mySpan);
+          if (lat > la1 || lat < la2) continue;
 
-  map.on('mouseout', () => {
-    tooltip.hidden = true;
-    mapCanvas.style.cursor = '';
-  });
-}
+          const row = Math.min(
+            Math.max(Math.round((la1 - lat) / dj), 0),
+            nj - 1,
+          );
+          const rowOff = row * ni;
+          const imgRow = py * outW;
 
-// ── Card builder ──────────────────────────────────────────────────────────────
+          for (let col = 0; col < outW; col++) {
+            const off = (imgRow + col) * 4;
+            const v = values[rowOff + col];
+            if (v <= MISSING_VALUE) {
+              px[off] = px[off + 1] = px[off + 2] = 180;
+              px[off + 3] = 100;
+            } else {
+              const li =
+                Math.min(Math.round(((v - min) / range) * 255), 255) * 3;
+              px[off] = lut[li];
+              px[off + 1] = lut[li + 1];
+              px[off + 2] = lut[li + 2];
+              px[off + 3] = 255;
+            }
+          }
+        }
+        ctx.putImageData(img, 0, 0);
 
-function buildCard(msg) {
-  const { index, header, product: p, grid: g } = msg;
-  const row = (key, val) => `
+        // Update legend bar
+        const sc = makeScale(currentPalette);
+        const stops = Array.from({ length: 8 }, (_, i) => sc(i / 7).css()).join(
+          ", ",
+        );
+        document.getElementById("cs-bar").style.background =
+          `linear-gradient(to right, ${stops})`;
+
+        if (map) map.triggerRepaint();
+      }
+
+      // ── Hover tooltip ─────────────────────────────────────────────────────────────
+
+      function setupHoverTooltip() {
+        const tooltip = document.getElementById("map-tooltip");
+        const mapCanvas = map.getCanvas();
+
+        map.on("mousemove", (e) => {
+          if (!gridState) return;
+          const { lat, lng } = e.lngLat;
+          const { grid, values, product } = gridState;
+          const {
+            ni,
+            latitudeOfFirstPoint: la1,
+            longitudeOfFirstPoint: lo1,
+            latitudeOfLastPoint: la2,
+            longitudeOfLastPoint: lo2,
+            di,
+            dj,
+          } = grid;
+
+          // Outside domain
+          if (lat > la1 || lat < la2 || lng < lo1 || lng > lo2) {
+            tooltip.hidden = true;
+            mapCanvas.style.cursor = "";
+            return;
+          }
+
+          const row = Math.round((la1 - lat) / dj);
+          const col = Math.round((lng - lo1) / di);
+          const idx = row * ni + col;
+          const val =
+            idx >= 0 && idx < values.length ? values[idx] : MISSING_VALUE;
+
+          if (val <= MISSING_VALUE) {
+            tooltip.hidden = true;
+            mapCanvas.style.cursor = "default";
+            return;
+          }
+
+          mapCanvas.style.cursor = "crosshair";
+          tooltip.hidden = false;
+          tooltip.textContent = `${product.name} : ${val.toFixed(2)} ${product.units}`;
+          const wrap = document.getElementById("map-wrap");
+          const rect = wrap.getBoundingClientRect();
+          tooltip.style.left = e.originalEvent.clientX - rect.left + 14 + "px";
+          tooltip.style.top = e.originalEvent.clientY - rect.top - 36 + "px";
+        });
+
+        map.on("mouseout", () => {
+          tooltip.hidden = true;
+          mapCanvas.style.cursor = "";
+        });
+      }
+
+      // ── Card builder ──────────────────────────────────────────────────────────────
+
+      function buildCard(msg) {
+        const { index, header, product: p, grid: g } = msg;
+        const row = (key, val) => `
     <div class="card-row">
       <span class="key">${key}</span>
       <span class="val">${val}</span>
     </div>`;
-  return `
+        return `
     <div class="card">
       <div class="card-header">
         <span class="badge">${p.shortName}</span>
         <div><div class="card-title">${p.name}</div></div>
       </div>
       <div class="card-rows">
-        ${row('Unit',       p.units)}
-        ${row('Level',      fmtLevel(p))}
-        ${row('Forecast time (UTC)', fmtValidTime(header, p))}
-        ${row('Process',    code(GENERATING_PROCESS, p.typeOfGeneratingProcess))}
+        ${row("Unit", p.units)}
+        ${row("Level", fmtLevel(p))}
+        ${row("Forecast time (UTC)", fmtValidTime(header, p))}
+        ${row("Process", code(GENERATING_PROCESS, p.typeOfGeneratingProcess))}
         <hr class="card-divider">
-        ${row('Grid',       fmtGrid(g))}
-        ${row('Resolution', `${g.di}° × ${g.dj}°`)}
-        ${row('Message #',  index)}
+        ${row("Grid", fmtGrid(g))}
+        ${row("Resolution", `${g.di}° × ${g.dj}°`)}
+        ${row("Message #", index)}
       </div>
       <button class="btn-grid" data-var="${p.shortName}">View grid</button>
     </div>`;
-}
+      }
 
-// ── Home view: process uploaded file ─────────────────────────────────────────
+      // ── Home view: process uploaded file ─────────────────────────────────────────
 
-function processFile(file) {
-  setStatus('Reading file…');
-  const reader = new FileReader();
-  reader.onload = (e) => {
-    try {
-      const buffer = e.target.result;
-      const messages = [...iterateGRIB2Messages(buffer)];
-      if (messages.length === 0) { setStatus('No GRIB2 messages found.', true); return; }
+      function processFile(file) {
+        setStatus("Reading file…");
+        const reader = new FileReader();
+        reader.onload = (e) => {
+          try {
+            const buffer = e.target.result;
+            const messages = [...iterateGRIB2Messages(buffer)];
+            if (messages.length === 0) {
+              setStatus("No GRIB2 messages found.", true);
+              return;
+            }
 
-      fileState = { messages };
+            fileState = { messages };
 
-      const first = messages[0];
-      document.getElementById('s-name').textContent    = file.name;
-      document.getElementById('s-size').textContent    = fmtSize(file.size);
-      document.getElementById('s-count').textContent   = messages.length;
-      document.getElementById('s-centre').textContent  =
-        CENTRES[first.header.centre] ?? `Centre ${first.header.centre}`;
-      document.getElementById('s-reftime').textContent = fmtRefTime(first.header);
-      document.getElementById('file-summary').style.display = 'flex';
+            const first = messages[0];
+            document.getElementById("s-name").textContent = file.name;
+            document.getElementById("s-size").textContent = fmtSize(file.size);
+            document.getElementById("s-count").textContent = messages.length;
+            document.getElementById("s-centre").textContent =
+              CENTRES[first.header.centre] ?? `Centre ${first.header.centre}`;
+            document.getElementById("s-reftime").textContent = fmtRefTime(
+              first.header,
+            );
+            document.getElementById("file-summary").style.display = "flex";
 
-      document.getElementById('cards').innerHTML = messages.map(buildCard).join('');
-      document.getElementById('results').style.display = 'block';
-      setStatus('');
-    } catch (err) { setStatus('Error: ' + err.message, true); }
-  };
-  reader.onerror = () => setStatus('Could not read file.', true);
-  reader.readAsArrayBuffer(file);
-}
+            document.getElementById("cards").innerHTML = messages
+              .map(buildCard)
+              .join("");
+            document.getElementById("results").style.display = "block";
+            setStatus("");
+          } catch (err) {
+            setStatus("Error: " + err.message, true);
+          }
+        };
+        reader.onerror = () => setStatus("Could not read file.", true);
+        reader.readAsArrayBuffer(file);
+      }
 
-function setStatus(msg, isError = false) {
-  const el = document.getElementById('status');
-  el.textContent = msg;
-  el.className = isError ? 'error' : '';
-}
+      function setStatus(msg, isError = false) {
+        const el = document.getElementById("status");
+        el.textContent = msg;
+        el.className = isError ? "error" : "";
+      }
 
-// ── Grid view: decode + render on map ────────────────────────────────────────
+      // ── Grid view: decode + render on map ────────────────────────────────────────
 
-async function showGridView(shortName) {
-  if (!fileState) { location.hash = ''; return; }
+      async function showGridView(shortName) {
+        if (!fileState) {
+          location.hash = "";
+          return;
+        }
 
-  const msg = fileState.messages.find(m => m.product.shortName === shortName);
-  if (!msg) { location.hash = ''; return; }
+        const msg = fileState.messages.find(
+          (m) => m.product.shortName === shortName,
+        );
+        if (!msg) {
+          location.hash = "";
+          return;
+        }
 
-  const p = msg.product;
+        const p = msg.product;
 
-  // Populate toolbar
-  document.getElementById('gv-badge').textContent = p.shortName;
-  document.getElementById('gv-name').textContent  = p.name;
-  document.getElementById('gv-sub').textContent   =
-    `${fmtLevel(p)} · ${fmtValidTime(msg.header, p)}`;
+        // Populate toolbar
+        document.getElementById("gv-badge").textContent = p.shortName;
+        document.getElementById("gv-name").textContent = p.name;
+        document.getElementById("gv-sub").textContent =
+          `${fmtLevel(p)} · ${fmtValidTime(msg.header, p)}`;
 
-  // Reset stats
-  for (const id of ['gv-min','gv-max','gv-mean','gv-valid']) {
-    document.getElementById(id).textContent = '—';
-  }
-  document.getElementById('colorscale').style.display = 'none';
+        // Reset stats
+        for (const id of ["gv-min", "gv-max", "gv-mean", "gv-valid"]) {
+          document.getElementById(id).textContent = "—";
+        }
+        document.getElementById("colorscale").style.display = "none";
 
-  // Switch view
-  document.getElementById('view-home').style.display = 'none';
-  document.getElementById('view-grid').style.display  = 'block';
+        // Switch view
+        document.getElementById("view-home").style.display = "none";
+        document.getElementById("view-grid").style.display = "block";
 
-  // Decode (WASM)
-  let decoded;
-  try {
-    decoded = await decodeGRIB2(msg.buffer);
-  } catch (err) {
-    document.getElementById('map').textContent = 'Decode error: ' + err.message;
-    return;
-  }
+        // Decode (WASM)
+        let decoded;
+        try {
+          decoded = await decodeGRIB2(msg.buffer);
+        } catch (err) {
+          document.getElementById("map").textContent =
+            "Decode error: " + err.message;
+          return;
+        }
 
-  const { values, grid: gr } = decoded;
+        const { values, grid: gr } = decoded;
 
-  // Stats
-  const { min, max, mean, count } = computeStats(values);
-  const range = max - min || 1;
+        // Stats
+        const { min, max, mean, count } = computeStats(values);
+        const range = max - min || 1;
 
-  document.getElementById('gv-min').textContent   = fmtNum(min, 3) + ' ' + p.units;
-  document.getElementById('gv-max').textContent   = fmtNum(max, 3) + ' ' + p.units;
-  document.getElementById('gv-mean').textContent  = fmtNum(mean, 3) + ' ' + p.units;
-  document.getElementById('gv-valid').textContent = count.toLocaleString();
+        document.getElementById("gv-min").textContent =
+          fmtNum(min, 3) + " " + p.units;
+        document.getElementById("gv-max").textContent =
+          fmtNum(max, 3) + " " + p.units;
+        document.getElementById("gv-mean").textContent =
+          fmtNum(mean, 3) + " " + p.units;
+        document.getElementById("gv-valid").textContent =
+          count.toLocaleString();
 
-  // Store state (grid + product needed by hover tooltip)
-  gridState = { values, min, range, grid: gr, product: p };
+        // Store state (grid + product needed by hover tooltip)
+        gridState = { values, min, range, grid: gr, product: p };
 
-  // Offscreen canvas: full grid width, Mercator-proportional height
-  heatCanvas        = document.createElement('canvas');
-  heatCanvas.width  = gr.ni;
-  heatCanvas.height = mercatorCanvasHeight(gr);
+        // Offscreen canvas: full grid width, Mercator-proportional height
+        heatCanvas = document.createElement("canvas");
+        heatCanvas.width = gr.ni;
+        heatCanvas.height = mercatorCanvasHeight(gr);
 
-  // Geographic corners [lng, lat] — clockwise from top-left
-  const { latitudeOfFirstPoint: la1, longitudeOfFirstPoint: lo1,
-          latitudeOfLastPoint:  la2, longitudeOfLastPoint:  lo2 } = gr;
-  const corners = [[lo1, la1], [lo2, la1], [lo2, la2], [lo1, la2]];
+        // Geographic corners [lng, lat] — clockwise from top-left
+        const {
+          latitudeOfFirstPoint: la1,
+          longitudeOfFirstPoint: lo1,
+          latitudeOfLastPoint: la2,
+          longitudeOfLastPoint: lo2,
+        } = gr;
+        const corners = [
+          [lo1, la1],
+          [lo2, la1],
+          [lo2, la2],
+          [lo1, la2],
+        ];
 
-  // Render heatmap into offscreen canvas
-  renderHeatmap();
+        // Render heatmap into offscreen canvas
+        renderHeatmap();
 
-  // Init MapLibre once
-  if (!map) {
-    map = new maplibregl.Map({
-      container: 'map',
-      style: 'https://tiles.openfreemap.org/styles/positron',
-      attributionControl: true,
-    });
-    await new Promise(r => map.once('load', r));
-    map.addControl(new maplibregl.FullscreenControl({ container: document.getElementById('map-wrap') }));
-    setupHoverTooltip();
-  }
+        // Init MapLibre once
+        if (!map) {
+          map = new maplibregl.Map({
+            container: "map",
+            style: "https://tiles.openfreemap.org/styles/positron",
+            attributionControl: true,
+          });
+          await new Promise((r) => map.once("load", r));
+          map.addControl(
+            new maplibregl.FullscreenControl({
+              container: document.getElementById("map-wrap"),
+            }),
+          );
+          setupHoverTooltip();
+        }
 
-  // Replace raster source + layer
-  if (map.getSource('grib2')) {
-    map.removeLayer('grib2-layer');
-    map.removeSource('grib2');
-  }
-  map.addSource('grib2', {
-    type: 'canvas',
-    canvas: heatCanvas,
-    coordinates: corners,
-    animate: true,
-  });
-  map.addLayer({
-    id: 'grib2-layer',
-    type: 'raster',
-    source: 'grib2',
-    paint: {
-      'raster-opacity': 0.8,
-      'raster-resampling': 'nearest',
-    },
-  });
+        // Replace raster source + layer
+        if (map.getSource("grib2")) {
+          map.removeLayer("grib2-layer");
+          map.removeSource("grib2");
+        }
+        map.addSource("grib2", {
+          type: "canvas",
+          canvas: heatCanvas,
+          coordinates: corners,
+          animate: true,
+        });
+        map.addLayer({
+          id: "grib2-layer",
+          type: "raster",
+          source: "grib2",
+          paint: {
+            "raster-opacity": 0.8,
+            "raster-resampling": "nearest",
+          },
+        });
 
-  // Fit map to grid bounds
-  map.fitBounds([[lo1, la2], [lo2, la1]], { padding: 20, animate: false });
+        // Fit map to grid bounds
+        map.fitBounds(
+          [
+            [lo1, la2],
+            [lo2, la1],
+          ],
+          { padding: 20, animate: false },
+        );
 
-  // Show color scale
-  document.getElementById('cs-min').textContent  = fmtNum(min, 2);
-  document.getElementById('cs-max').textContent  = fmtNum(max, 2);
-  document.getElementById('cs-unit').textContent = p.units;
-  document.getElementById('colorscale').style.display = 'flex';
-}
+        // Show color scale
+        document.getElementById("cs-min").textContent = fmtNum(min, 2);
+        document.getElementById("cs-max").textContent = fmtNum(max, 2);
+        document.getElementById("cs-unit").textContent = p.units;
+        document.getElementById("colorscale").style.display = "flex";
+      }
 
-// ── AROME live data ───────────────────────────────────────────────────────────
+      // ── AROME live data ───────────────────────────────────────────────────────────
 
-function buildAromeVarCards() {
-  document.getElementById('arome-var-cards').innerHTML = SP1_VARIABLES.map(v => `
-    <div class="arome-var-card${v.shortName === aromeSelVar ? ' selected' : ''}"
+      function buildAromeVarCards() {
+        document.getElementById("arome-var-cards").innerHTML =
+          SP1_VARIABLES.map(
+            (v) => `
+    <div class="arome-var-card${v.shortName === aromeSelVar ? " selected" : ""}"
          data-short="${v.shortName}">
       <div class="vc-short">${v.shortName}</div>
       <div class="vc-name">${v.name}</div>
       <div class="vc-meta">${v.units} · ${v.level}</div>
-    </div>`).join('');
-}
+    </div>`,
+          ).join("");
+      }
 
-async function fetchAromeResources() {
-  const resp = await fetch('https://www.data.gouv.fr/api/1/datasets/65bd1247a6238f16e864fa80/');
-  if (!resp.ok) throw new Error(`API ${resp.status}`);
-  const data = await resp.json();
-  return data.resources
-    .filter(r => r.format === 'grib2' && r.title && r.title.includes('__SP1__'))
-    .map(r => {
-      const m = r.title.match(/__(\d+)H__/);
-      return { hour: m ? parseInt(m[1], 10) : -1, url: r.url, filesize: r.filesize };
-    })
-    .filter(r => r.hour >= 0)
-    .sort((a, b) => a.hour - b.hour);
-}
+      async function fetchAromeResources() {
+        const resp = await fetch(
+          "https://www.data.gouv.fr/api/1/datasets/65bd1247a6238f16e864fa80/",
+        );
+        if (!resp.ok) throw new Error(`API ${resp.status}`);
+        const data = await resp.json();
+        return data.resources
+          .filter(
+            (r) =>
+              r.format === "grib2" && r.title && r.title.includes("__SP1__"),
+          )
+          .map((r) => {
+            const m = r.title.match(/__(\d+)H__/);
+            return {
+              hour: m ? parseInt(m[1], 10) : -1,
+              url: r.url,
+              filesize: r.filesize,
+            };
+          })
+          .filter((r) => r.hour >= 0)
+          .sort((a, b) => a.hour - b.hour);
+      }
 
-async function downloadFileProg(url, filesize, onProgress) {
-  const resp = await fetch(url);
-  if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
-  const reader = resp.body.getReader();
-  const chunks = [];
-  let loaded = 0;
-  while (true) {
-    const { done, value } = await reader.read();
-    if (done) break;
-    chunks.push(value);
-    loaded += value.length;
-    onProgress(loaded, filesize || loaded);
-  }
-  const total = chunks.reduce((s, c) => s + c.length, 0);
-  const out   = new Uint8Array(total);
-  let off = 0;
-  for (const c of chunks) { out.set(c, off); off += c.length; }
-  return out;
-}
+      async function downloadFileProg(url, filesize, onProgress) {
+        const resp = await fetch(url);
+        if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+        const reader = resp.body.getReader();
+        const chunks = [];
+        let loaded = 0;
+        while (true) {
+          const { done, value } = await reader.read();
+          if (done) break;
+          chunks.push(value);
+          loaded += value.length;
+          onProgress(loaded, filesize || loaded);
+        }
+        const total = chunks.reduce((s, c) => s + c.length, 0);
+        const out = new Uint8Array(total);
+        let off = 0;
+        for (const c of chunks) {
+          out.set(c, off);
+          off += c.length;
+        }
+        return out;
+      }
 
-async function aromeShowHour(idx) {
-  if (isDecoding) return;
-  isDecoding = true;
+      async function aromeShowHour(idx) {
+        if (isDecoding) return;
+        isDecoding = true;
 
-  const { resources, buffers, decoded, decodedOrder, variable } = aromeState;
-  const { hour } = resources[idx];
-  document.getElementById('arome-hour-label').textContent =
-    `+${String(hour).padStart(2, '0')}H`;
+        const { resources, buffers, decoded, decodedOrder, variable } =
+          aromeState;
+        const { hour } = resources[idx];
+        document.getElementById("arome-hour-label").textContent =
+          `+${String(hour).padStart(2, "0")}H`;
 
-  let data;
-  if (decoded.has(hour)) {
-    data = decoded.get(hour);
-  } else {
-    if (decodedOrder.length >= 5) decoded.delete(decodedOrder.shift());
-    const buffer = buffers.get(hour);
-    let targetMsg = null;
-    for (const msg of iterateGRIB2Messages(buffer)) {
-      if (msg.product.shortName === variable) { targetMsg = msg; break; }
-    }
-    if (!targetMsg) { isDecoding = false; return; }
-    const dec = await decodeGRIB2(targetMsg.buffer);
-    data = { values: dec.values, grid: dec.grid, product: dec.product, header: dec.header };
-    decoded.set(hour, data);
-    decodedOrder.push(hour);
-  }
+        let data;
+        if (decoded.has(hour)) {
+          data = decoded.get(hour);
+        } else {
+          if (decodedOrder.length >= 5) decoded.delete(decodedOrder.shift());
+          const buffer = buffers.get(hour);
+          let targetMsg = null;
+          for (const msg of iterateGRIB2Messages(buffer)) {
+            if (msg.product.shortName === variable) {
+              targetMsg = msg;
+              break;
+            }
+          }
+          if (!targetMsg) {
+            isDecoding = false;
+            return;
+          }
+          const dec = await decodeGRIB2(targetMsg.buffer);
+          data = {
+            values: dec.values,
+            grid: dec.grid,
+            product: dec.product,
+            header: dec.header,
+          };
+          decoded.set(hour, data);
+          decodedOrder.push(hour);
+        }
 
-  aromeState.currentHour = hour;
-  const { values, grid, product, header } = data;
-  const { min, max, mean, count } = computeStats(values);
-  const range = max - min || 1;
-  gridState = { values, min, range, grid, product };
+        aromeState.currentHour = hour;
+        const { values, grid, product, header } = data;
+        const { min, max, mean, count } = computeStats(values);
+        const range = max - min || 1;
+        gridState = { values, min, range, grid, product };
 
-  // Create/resize offscreen canvas only when needed
-  const needH = mercatorCanvasHeight(grid);
-  const canvasChanged = !heatCanvas || heatCanvas.width !== grid.ni || heatCanvas.height !== needH;
-  if (canvasChanged) {
-    heatCanvas        = document.createElement('canvas');
-    heatCanvas.width  = grid.ni;
-    heatCanvas.height = needH;
-  }
-  renderHeatmap();
+        // Create/resize offscreen canvas only when needed
+        const needH = mercatorCanvasHeight(grid);
+        const canvasChanged =
+          !heatCanvas ||
+          heatCanvas.width !== grid.ni ||
+          heatCanvas.height !== needH;
+        if (canvasChanged) {
+          heatCanvas = document.createElement("canvas");
+          heatCanvas.width = grid.ni;
+          heatCanvas.height = needH;
+        }
+        renderHeatmap();
 
-  // Init map once
-  const { latitudeOfFirstPoint: la1, longitudeOfFirstPoint: lo1,
-          latitudeOfLastPoint:  la2, longitudeOfLastPoint:  lo2 } = grid;
-  const corners = [[lo1, la1], [lo2, la1], [lo2, la2], [lo1, la2]];
-  if (!map) {
-    map = new maplibregl.Map({
-      container: 'map', style: 'https://tiles.openfreemap.org/styles/positron', attributionControl: true,
-    });
-    await new Promise(r => map.once('load', r));
-    map.addControl(new maplibregl.FullscreenControl({ container: document.getElementById('map-wrap') }));
-    setupHoverTooltip();
-  }
+        // Init map once
+        const {
+          latitudeOfFirstPoint: la1,
+          longitudeOfFirstPoint: lo1,
+          latitudeOfLastPoint: la2,
+          longitudeOfLastPoint: lo2,
+        } = grid;
+        const corners = [
+          [lo1, la1],
+          [lo2, la1],
+          [lo2, la2],
+          [lo1, la2],
+        ];
+        if (!map) {
+          map = new maplibregl.Map({
+            container: "map",
+            style: "https://tiles.openfreemap.org/styles/positron",
+            attributionControl: true,
+          });
+          await new Promise((r) => map.once("load", r));
+          map.addControl(
+            new maplibregl.FullscreenControl({
+              container: document.getElementById("map-wrap"),
+            }),
+          );
+          setupHoverTooltip();
+        }
 
-  // (Re)create source if canvas changed or source missing
-  if (!map.getSource('grib2') || canvasChanged) {
-    if (map.getSource('grib2')) { map.removeLayer('grib2-layer'); map.removeSource('grib2'); }
-    map.addSource('grib2', { type: 'canvas', canvas: heatCanvas, coordinates: corners, animate: true });
-    map.addLayer({ id: 'grib2-layer', type: 'raster', source: 'grib2',
-                   paint: { 'raster-opacity': 0.8, 'raster-resampling': 'nearest' } });
-  }
-  if (!aromeState.mapReady) {
-    map.fitBounds([[lo1, la2], [lo2, la1]], { padding: 20, animate: false });
-    aromeState.mapReady = true;
-  }
+        // (Re)create source if canvas changed or source missing
+        if (!map.getSource("grib2") || canvasChanged) {
+          if (map.getSource("grib2")) {
+            map.removeLayer("grib2-layer");
+            map.removeSource("grib2");
+          }
+          map.addSource("grib2", {
+            type: "canvas",
+            canvas: heatCanvas,
+            coordinates: corners,
+            animate: true,
+          });
+          map.addLayer({
+            id: "grib2-layer",
+            type: "raster",
+            source: "grib2",
+            paint: { "raster-opacity": 0.8, "raster-resampling": "nearest" },
+          });
+        }
+        if (!aromeState.mapReady) {
+          map.fitBounds(
+            [
+              [lo1, la2],
+              [lo2, la1],
+            ],
+            { padding: 20, animate: false },
+          );
+          aromeState.mapReady = true;
+        }
 
-  // Update stats + colorscale + valid time
-  document.getElementById('gv-min').textContent   = fmtNum(min, 3) + ' ' + product.units;
-  document.getElementById('gv-max').textContent   = fmtNum(max, 3) + ' ' + product.units;
-  document.getElementById('gv-mean').textContent  = fmtNum(mean, 3) + ' ' + product.units;
-  document.getElementById('gv-valid').textContent = count.toLocaleString();
-  document.getElementById('cs-min').textContent   = fmtNum(min, 2);
-  document.getElementById('cs-max').textContent   = fmtNum(max, 2);
-  document.getElementById('cs-unit').textContent  = product.units;
-  document.getElementById('colorscale').style.display = 'flex';
-  document.getElementById('arome-valid-time').textContent = fmtValidTime(header, product);
+        // Update stats + colorscale + valid time
+        document.getElementById("gv-min").textContent =
+          fmtNum(min, 3) + " " + product.units;
+        document.getElementById("gv-max").textContent =
+          fmtNum(max, 3) + " " + product.units;
+        document.getElementById("gv-mean").textContent =
+          fmtNum(mean, 3) + " " + product.units;
+        document.getElementById("gv-valid").textContent =
+          count.toLocaleString();
+        document.getElementById("cs-min").textContent = fmtNum(min, 2);
+        document.getElementById("cs-max").textContent = fmtNum(max, 2);
+        document.getElementById("cs-unit").textContent = product.units;
+        document.getElementById("colorscale").style.display = "flex";
+        document.getElementById("arome-valid-time").textContent = fmtValidTime(
+          header,
+          product,
+        );
 
-  isDecoding = false;
-}
+        isDecoding = false;
+      }
 
-async function startAromeDownload() {
-  document.getElementById('arome-step-select').style.display = 'none';
-  document.getElementById('arome-step-dl').style.display     = 'block';
-  document.getElementById('arome-dl-status').textContent     = 'Récupération de la liste des fichiers…';
+      async function startAromeDownload() {
+        document.getElementById("arome-step-select").style.display = "none";
+        document.getElementById("arome-step-dl").style.display = "block";
+        document.getElementById("arome-dl-status").textContent =
+          "Récupération de la liste des fichiers…";
 
-  let resources;
-  try {
-    resources = await fetchAromeResources();
-  } catch (e) {
-    document.getElementById('arome-dl-status').textContent = 'Erreur API : ' + e.message;
-    return;
-  }
+        let resources;
+        try {
+          resources = await fetchAromeResources();
+        } catch (e) {
+          document.getElementById("arome-dl-status").textContent =
+            "Erreur API : " + e.message;
+          return;
+        }
 
-  document.getElementById('arome-dl-status').textContent =
-    `Téléchargement de ${resources.length} fichiers SP1…`;
+        document.getElementById("arome-dl-status").textContent =
+          `Téléchargement de ${resources.length} fichiers SP1…`;
 
-  // Build progress bars
-  const barsEl = document.getElementById('arome-dl-bars');
-  barsEl.innerHTML = '';
-  const fills = new Map();
-  for (const { hour } of resources) {
-    const item = document.createElement('div');
-    item.className = 'arome-dl-item';
-    item.id = `dl-${hour}`;
-    item.innerHTML = `<div class="arome-dl-label">+${String(hour).padStart(2, '0')}H</div>
+        // Build progress bars
+        const barsEl = document.getElementById("arome-dl-bars");
+        barsEl.innerHTML = "";
+        const fills = new Map();
+        for (const { hour } of resources) {
+          const item = document.createElement("div");
+          item.className = "arome-dl-item";
+          item.id = `dl-${hour}`;
+          item.innerHTML = `<div class="arome-dl-label">+${String(hour).padStart(2, "0")}H</div>
                       <div class="arome-dl-track"><div class="arome-dl-fill" id="fill-${hour}"></div></div>`;
-    barsEl.appendChild(item);
-    fills.set(hour, document.getElementById(`fill-${hour}`));
-  }
+          barsEl.appendChild(item);
+          fills.set(hour, document.getElementById(`fill-${hour}`));
+        }
 
-  aromeState = { resources, buffers: new Map(), decoded: new Map(),
-                 decodedOrder: [], variable: aromeSelVar, mapReady: false };
+        aromeState = {
+          resources,
+          buffers: new Map(),
+          decoded: new Map(),
+          decodedOrder: [],
+          variable: aromeSelVar,
+          mapReady: false,
+        };
 
-  let doneCount = 0;
-  await Promise.all(resources.map(async ({ hour, url, filesize }) => {
-    aromeState.buffers.set(hour, await downloadFileProg(url, filesize, (loaded, total) => {
-      fills.get(hour).style.width = Math.round(loaded / total * 100) + '%';
-    }));
-    document.getElementById(`dl-${hour}`).classList.add('done');
-    doneCount++;
-    document.getElementById('arome-dl-status').textContent =
-      `Téléchargement… ${doneCount} / ${resources.length}`;
-  }));
+        let doneCount = 0;
+        await Promise.all(
+          resources.map(async ({ hour, url, filesize }) => {
+            aromeState.buffers.set(
+              hour,
+              await downloadFileProg(url, filesize, (loaded, total) => {
+                fills.get(hour).style.width =
+                  Math.round((loaded / total) * 100) + "%";
+              }),
+            );
+            document.getElementById(`dl-${hour}`).classList.add("done");
+            doneCount++;
+            document.getElementById("arome-dl-status").textContent =
+              `Téléchargement… ${doneCount} / ${resources.length}`;
+          }),
+        );
 
-  // Switch to player (reuse #view-grid)
-  document.getElementById('view-arome').style.display           = 'none';
-  document.getElementById('view-grid').style.display            = 'block';
-  document.getElementById('grid-toolbar').style.display         = 'none';
-  document.getElementById('arome-player-toolbar').style.display = 'flex';
+        // Switch to player (reuse #view-grid)
+        document.getElementById("view-arome").style.display = "none";
+        document.getElementById("view-grid").style.display = "block";
+        document.getElementById("grid-toolbar").style.display = "none";
+        document.getElementById("arome-player-toolbar").style.display = "flex";
 
-  const v = SP1_VARIABLES.find(x => x.shortName === aromeSelVar);
-  document.getElementById('arome-player-badge').textContent = v?.shortName ?? '';
+        const v = SP1_VARIABLES.find((x) => x.shortName === aromeSelVar);
+        document.getElementById("arome-player-badge").textContent =
+          v?.shortName ?? "";
 
-  const slider = document.getElementById('arome-slider');
-  slider.max   = resources.length - 1;
-  slider.value = 0;
+        const slider = document.getElementById("arome-slider");
+        slider.max = resources.length - 1;
+        slider.value = 0;
 
-  // Decode and show first hour
-  await aromeShowHour(0);
-}
+        // Decode and show first hour
+        await aromeShowHour(0);
+      }
 
-// ── Router (hash-based) ───────────────────────────────────────────────────────
+      // ── Router (hash-based) ───────────────────────────────────────────────────────
 
-function showView(name) {
-  for (const id of ['view-home', 'view-arome', 'view-grid'])
-    document.getElementById(id).style.display = (id === name) ? 'block' : 'none';
-}
+      function showView(name) {
+        for (const id of ["view-home", "view-arome", "view-grid"])
+          document.getElementById(id).style.display =
+            id === name ? "block" : "none";
+      }
 
-function route() {
-  const hash = location.hash;
-  if (hash.startsWith('#grid/')) {
-    showView('view-grid');
-    document.getElementById('grid-toolbar').style.display         = 'flex';
-    document.getElementById('arome-player-toolbar').style.display = 'none';
-    showGridView(decodeURIComponent(hash.slice(6)));
-  } else if (hash === '#arome') {
-    showView('view-arome');
-    // Reset to step 1 if no download in progress
-    if (!aromeState?.buffers?.size) {
-      document.getElementById('arome-step-select').style.display = 'block';
-      document.getElementById('arome-step-dl').style.display     = 'none';
-    }
-    buildAromeVarCards();
-  } else {
-    showView('view-home');
-  }
-}
+      function route() {
+        const hash = location.hash;
+        if (hash.startsWith("#grid/")) {
+          showView("view-grid");
+          document.getElementById("grid-toolbar").style.display = "flex";
+          document.getElementById("arome-player-toolbar").style.display =
+            "none";
+          showGridView(decodeURIComponent(hash.slice(6)));
+        } else if (hash === "#arome") {
+          showView("view-arome");
+          // Reset to step 1 if no download in progress
+          if (!aromeState?.buffers?.size) {
+            document.getElementById("arome-step-select").style.display =
+              "block";
+            document.getElementById("arome-step-dl").style.display = "none";
+          }
+          buildAromeVarCards();
+        } else {
+          showView("view-home");
+        }
+      }
 
-window.addEventListener('hashchange', route);
-route();
+      window.addEventListener("hashchange", route);
+      route();
 
-// ── Event wiring ──────────────────────────────────────────────────────────────
+      // ── Event wiring ──────────────────────────────────────────────────────────────
 
-const dropZone  = document.getElementById('drop-zone');
-const fileInput = document.getElementById('file-input');
+      const dropZone = document.getElementById("drop-zone");
+      const fileInput = document.getElementById("file-input");
 
-dropZone.addEventListener('click', () => fileInput.click());
-dropZone.addEventListener('keydown', e => {
-  if (e.key === 'Enter' || e.key === ' ') fileInput.click();
-});
-fileInput.addEventListener('change', () => {
-  if (fileInput.files[0]) processFile(fileInput.files[0]);
-});
-dropZone.addEventListener('dragover', e => { e.preventDefault(); dropZone.classList.add('over'); });
-dropZone.addEventListener('dragleave', () => dropZone.classList.remove('over'));
-dropZone.addEventListener('drop', e => {
-  e.preventDefault();
-  dropZone.classList.remove('over');
-  if (e.dataTransfer.files[0]) processFile(e.dataTransfer.files[0]);
-});
+      dropZone.addEventListener("click", () => fileInput.click());
+      dropZone.addEventListener("keydown", (e) => {
+        if (e.key === "Enter" || e.key === " ") fileInput.click();
+      });
+      fileInput.addEventListener("change", () => {
+        if (fileInput.files[0]) processFile(fileInput.files[0]);
+      });
+      dropZone.addEventListener("dragover", (e) => {
+        e.preventDefault();
+        dropZone.classList.add("over");
+      });
+      dropZone.addEventListener("dragleave", () =>
+        dropZone.classList.remove("over"),
+      );
+      dropZone.addEventListener("drop", (e) => {
+        e.preventDefault();
+        dropZone.classList.remove("over");
+        if (e.dataTransfer.files[0]) processFile(e.dataTransfer.files[0]);
+      });
 
-document.getElementById('cards').addEventListener('click', e => {
-  const btn = e.target.closest('.btn-grid');
-  if (btn) location.hash = '#grid/' + encodeURIComponent(btn.dataset.var);
-});
+      document.getElementById("cards").addEventListener("click", (e) => {
+        const btn = e.target.closest(".btn-grid");
+        if (btn) location.hash = "#grid/" + encodeURIComponent(btn.dataset.var);
+      });
 
-document.getElementById('back-btn').addEventListener('click', () => {
-  location.hash = '';
-});
+      document.getElementById("back-btn").addEventListener("click", () => {
+        location.hash = "";
+      });
 
-document.getElementById('palette-select').addEventListener('change', e => {
-  currentPalette = e.target.value;
-  if (gridState) renderHeatmap();
-});
+      document
+        .getElementById("palette-select")
+        .addEventListener("change", (e) => {
+          currentPalette = e.target.value;
+          if (gridState) renderHeatmap();
+        });
 
-// ── AROME events ──────────────────────────────────────────────────────────────
+      // ── AROME events ──────────────────────────────────────────────────────────────
 
-document.getElementById('btn-arome').addEventListener('click', () => {
-  location.hash = '#arome';
-});
+      document.getElementById("btn-arome").addEventListener("click", () => {
+        location.hash = "#arome";
+      });
 
-document.getElementById('arome-home-btn').addEventListener('click', () => {
-  location.hash = '';
-});
+      document
+        .getElementById("arome-home-btn")
+        .addEventListener("click", () => {
+          location.hash = "";
+        });
 
-document.getElementById('arome-back-btn').addEventListener('click', () => {
-  location.hash = '';
-});
+      document
+        .getElementById("arome-back-btn")
+        .addEventListener("click", () => {
+          location.hash = "";
+        });
 
-document.getElementById('arome-var-cards').addEventListener('click', e => {
-  const card = e.target.closest('.arome-var-card');
-  if (!card) return;
-  aromeSelVar = card.dataset.short;
-  document.querySelectorAll('.arome-var-card').forEach(c =>
-    c.classList.toggle('selected', c.dataset.short === aromeSelVar));
-  document.getElementById('btn-arome-load').disabled = false;
-});
+      document
+        .getElementById("arome-var-cards")
+        .addEventListener("click", (e) => {
+          const card = e.target.closest(".arome-var-card");
+          if (!card) return;
+          aromeSelVar = card.dataset.short;
+          document
+            .querySelectorAll(".arome-var-card")
+            .forEach((c) =>
+              c.classList.toggle("selected", c.dataset.short === aromeSelVar),
+            );
+          document.getElementById("btn-arome-load").disabled = false;
+        });
 
-document.getElementById('btn-arome-load').addEventListener('click', () => {
-  startAromeDownload();
-});
+      document
+        .getElementById("btn-arome-load")
+        .addEventListener("click", () => {
+          startAromeDownload();
+        });
 
-const aromeSlider = document.getElementById('arome-slider');
-aromeSlider.addEventListener('input', () => {
-  if (!aromeState) return;
-  const h = aromeState.resources[aromeSlider.value].hour;
-  document.getElementById('arome-hour-label').textContent = `+${String(h).padStart(2, '0')}H`;
-});
-aromeSlider.addEventListener('change', () => {
-  if (!aromeState) return;
-  aromeShowHour(parseInt(aromeSlider.value, 10));
-});
+      const aromeSlider = document.getElementById("arome-slider");
+      aromeSlider.addEventListener("input", () => {
+        if (!aromeState) return;
+        const h = aromeState.resources[aromeSlider.value].hour;
+        document.getElementById("arome-hour-label").textContent =
+          `+${String(h).padStart(2, "0")}H`;
+      });
+      aromeSlider.addEventListener("change", () => {
+        if (!aromeState) return;
+        aromeShowHour(parseInt(aromeSlider.value, 10));
+      });
 
-document.getElementById('palette-select-arome').addEventListener('change', e => {
-  currentPalette = e.target.value;
-  // Keep both selects in sync
-  document.getElementById('palette-select').value = e.target.value;
-  if (gridState) renderHeatmap();
-});
-</script>
-
-</body>
+      document
+        .getElementById("palette-select-arome")
+        .addEventListener("change", (e) => {
+          currentPalette = e.target.value;
+          // Keep both selects in sync
+          document.getElementById("palette-select").value = e.target.value;
+          if (gridState) renderHeatmap();
+        });
+    </script>
+  </body>
 </html>
