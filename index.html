@@ -390,6 +390,19 @@
       #palette-select:hover {
         border-color: #8b919e;
       }
+      #arome-var-select {
+        background: #fff;
+        border: 1px solid #c5cad4;
+        border-radius: 7px;
+        padding: 6px 10px;
+        font-size: 0.82rem;
+        color: #1a1d23;
+        cursor: pointer;
+        transition: border-color 0.12s;
+      }
+      #arome-var-select:hover {
+        border-color: #8b919e;
+      }
 
       /* ══════════════════════════════════════════════════════
        AROME SHORTCUT (home)
@@ -430,83 +443,6 @@
         padding: 32px 24px;
       }
 
-      #arome-step-header {
-        display: flex;
-        align-items: center;
-        gap: 14px;
-        margin-bottom: 24px;
-      }
-      #arome-step-header h2 {
-        font-size: 0.78rem;
-        text-transform: uppercase;
-        letter-spacing: 0.07em;
-        color: #8b919e;
-        margin: 0;
-      }
-      #arome-var-cards {
-        display: grid;
-        grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
-        gap: 12px;
-      }
-      .arome-var-card {
-        background: #fff;
-        border: 2px solid #e2e6ec;
-        border-radius: 10px;
-        padding: 14px 16px;
-        cursor: pointer;
-        transition:
-          border-color 0.15s,
-          background 0.15s;
-      }
-      .arome-var-card:hover {
-        border-color: #3b82f6;
-      }
-      .arome-var-card.selected {
-        border-color: #3b82f6;
-        background: #eff6ff;
-      }
-      .arome-var-card .vc-short {
-        font-family: monospace;
-        font-size: 0.8rem;
-        font-weight: 700;
-        background: #1a1d23;
-        color: #fff;
-        padding: 2px 7px;
-        border-radius: 4px;
-        display: inline-block;
-        margin-bottom: 8px;
-      }
-      .arome-var-card .vc-name {
-        font-size: 0.88rem;
-        font-weight: 600;
-        margin-bottom: 2px;
-      }
-      .arome-var-card .vc-meta {
-        font-size: 0.74rem;
-        color: #8b919e;
-      }
-
-      #arome-select-footer {
-        margin-top: 20px;
-      }
-      #btn-arome-load {
-        padding: 10px 24px;
-        background: #1a1d23;
-        color: #fff;
-        border: none;
-        border-radius: 7px;
-        font-size: 0.88rem;
-        font-weight: 500;
-        cursor: pointer;
-        transition: background 0.15s;
-      }
-      #btn-arome-load:disabled {
-        opacity: 0.4;
-        cursor: not-allowed;
-      }
-      #btn-arome-load:not(:disabled):hover {
-        background: #353b4a;
-      }
 
       #arome-dl-status {
         font-size: 0.88rem;
@@ -608,8 +544,8 @@
         <div id="status"></div>
 
         <div id="arome-shortcut">
-          <button id="btn-arome">Données AROME en direct</button>
-          <small>Météo-France SP1 · 0,01° (last available run)</small>
+          <button id="btn-arome">Live AROME data</button>
+          <small>Météo-France SP1 · 0.01° (last available run)</small>
         </div>
 
         <div id="file-summary">
@@ -647,23 +583,8 @@
 ══════════════════════════════════════════════════════ -->
     <div id="view-arome" style="display: none">
       <main>
-        <!-- Step 1 : variable selection -->
-        <div id="arome-step-select">
-          <div id="arome-step-header">
-            <button class="btn-back" id="arome-home-btn">← Accueil</button>
-            <h2>Choisir un paramètre — AROME SP1</h2>
-          </div>
-          <div id="arome-var-cards"></div>
-          <div id="arome-select-footer">
-            <button id="btn-arome-load" disabled>Télécharger la run</button>
-          </div>
-        </div>
-
-        <!-- Step 2 : download progress -->
-        <div id="arome-step-dl" style="display: none">
-          <p id="arome-dl-status">Récupération de la liste des fichiers…</p>
-          <div id="arome-dl-bars"></div>
-        </div>
+        <p id="arome-dl-status">Fetching file list…</p>
+        <div id="arome-dl-bars"></div>
       </main>
     </div>
 
@@ -725,8 +646,8 @@
 
         <!-- AROME player toolbar (shown instead of #grid-toolbar in AROME mode) -->
         <div id="arome-player-toolbar" style="display: none">
-          <button class="btn-back" id="arome-back-btn">← Accueil</button>
-          <span class="badge" id="arome-player-badge"></span>
+          <button class="btn-back" id="arome-back-btn">← Home</button>
+          <select id="arome-var-select"></select>
           <div id="arome-slider-wrap">
             <span id="arome-hour-label">+00H</span>
             <input type="range" id="arome-slider" min="0" step="1" value="0" />
@@ -789,12 +710,12 @@
 
       // ── AROME SP1 variable catalogue (fixed list from real SP1 file) ──────────────
       const SP1_VARIABLES = [
-        { shortName: "t", name: "Température", units: "K", level: "2 m" },
-        { shortName: "r", name: "Humidité relative", units: "%", level: "2 m" },
-        { shortName: "u", name: "Vent U", units: "m s⁻¹", level: "10 m" },
-        { shortName: "v", name: "Vent V", units: "m s⁻¹", level: "10 m" },
-        { shortName: "ugust", name: "Rafale U", units: "m s⁻¹", level: "10 m" },
-        { shortName: "vgust", name: "Rafale V", units: "m s⁻¹", level: "10 m" },
+        { shortName: "t", name: "Temperature", units: "K", level: "2 m" },
+        { shortName: "r", name: "Relative humidity", units: "%", level: "2 m" },
+        { shortName: "u", name: "Wind U", units: "m s⁻¹", level: "10 m" },
+        { shortName: "v", name: "Wind V", units: "m s⁻¹", level: "10 m" },
+        { shortName: "ugust", name: "Gust U", units: "m s⁻¹", level: "10 m" },
+        { shortName: "vgust", name: "Gust V", units: "m s⁻¹", level: "10 m" },
       ];
 
       // ── State ─────────────────────────────────────────────────────────────────────
@@ -804,7 +725,6 @@
       let map = null; // MapLibre instance (created once, reused)
       let heatCanvas = null; // offscreen canvas for heatmap rendering
       let aromeState = null; // { resources, buffers, decoded, decodedOrder, variable, mapReady }
-      let aromeSelVar = null; // selected variable before download
       let isDecoding = false;
       let pendingHourIdx = null;
 
@@ -1068,6 +988,20 @@
         el.className = isError ? "error" : "";
       }
 
+      function resetApp() {
+        fileState = null;
+        gridState = null;
+        aromeState = null;
+        isDecoding = false;
+        pendingHourIdx = null;
+        setStatus("");
+        document.getElementById("file-summary").style.display = "none";
+        document.getElementById("results").style.display = "none";
+        document.getElementById("cards").innerHTML = "";
+        document.getElementById("arome-dl-bars").innerHTML = "";
+        location.hash = "";
+      }
+
       // ── Grid view: decode + render on map ────────────────────────────────────────
 
       async function showGridView(shortName) {
@@ -1207,18 +1141,6 @@
 
       // ── AROME live data ───────────────────────────────────────────────────────────
 
-      function buildAromeVarCards() {
-        document.getElementById("arome-var-cards").innerHTML =
-          SP1_VARIABLES.map(
-            (v) => `
-    <div class="arome-var-card${v.shortName === aromeSelVar ? " selected" : ""}"
-         data-short="${v.shortName}">
-      <div class="vc-short">${v.shortName}</div>
-      <div class="vc-name">${v.name}</div>
-      <div class="vc-meta">${v.units} · ${v.level}</div>
-    </div>`,
-          ).join("");
-      }
 
       async function fetchAromeResources() {
         const resp = await fetch(
@@ -1409,22 +1331,20 @@
       }
 
       async function startAromeDownload() {
-        document.getElementById("arome-step-select").style.display = "none";
-        document.getElementById("arome-step-dl").style.display = "block";
         document.getElementById("arome-dl-status").textContent =
-          "Récupération de la liste des fichiers…";
+          "Fetching file list…";
 
         let resources;
         try {
           resources = await fetchAromeResources();
         } catch (e) {
           document.getElementById("arome-dl-status").textContent =
-            "Erreur API : " + e.message;
+            "API error: " + e.message;
           return;
         }
 
         document.getElementById("arome-dl-status").textContent =
-          `Téléchargement de ${resources.length} fichiers SP1…`;
+          `Downloading ${resources.length} SP1 files…`;
 
         // Build progress bars
         const barsEl = document.getElementById("arome-dl-bars");
@@ -1445,7 +1365,7 @@
           buffers: new Map(),
           decoded: new Map(),
           decodedOrder: [],
-          variable: aromeSelVar,
+          variable: SP1_VARIABLES[0].shortName,
           mapReady: false,
         };
 
@@ -1464,7 +1384,7 @@
               document.getElementById(`dl-${hour}`).classList.add("done");
               doneCount++;
               document.getElementById("arome-dl-status").textContent =
-                `Téléchargement… ${doneCount} / ${resources.length}`;
+                `Downloading… ${doneCount} / ${resources.length}`;
             }),
           );
         }
@@ -1475,9 +1395,11 @@
         document.getElementById("grid-toolbar").style.display = "none";
         document.getElementById("arome-player-toolbar").style.display = "flex";
 
-        const v = SP1_VARIABLES.find((x) => x.shortName === aromeSelVar);
-        document.getElementById("arome-player-badge").textContent =
-          v?.shortName ?? "";
+        const varSelect = document.getElementById("arome-var-select");
+        varSelect.innerHTML = SP1_VARIABLES.map(
+          (v) => `<option value="${v.shortName}">${v.name}</option>`,
+        ).join("");
+        varSelect.value = aromeState.variable;
 
         const slider = document.getElementById("arome-slider");
         slider.max = resources.length - 1;
@@ -1505,13 +1427,7 @@
           showGridView(decodeURIComponent(hash.slice(6)));
         } else if (hash === "#arome") {
           showView("view-arome");
-          // Reset to step 1 if no download in progress
-          if (!aromeState?.buffers?.size) {
-            document.getElementById("arome-step-select").style.display =
-              "block";
-            document.getElementById("arome-step-dl").style.display = "none";
-          }
-          buildAromeVarCards();
+          if (!aromeState) startAromeDownload();
         } else {
           showView("view-home");
         }
@@ -1568,35 +1484,21 @@
       });
 
       document
-        .getElementById("arome-home-btn")
-        .addEventListener("click", () => {
-          location.hash = "";
-        });
-
-      document
         .getElementById("arome-back-btn")
-        .addEventListener("click", () => {
-          location.hash = "";
-        });
+        .addEventListener("click", resetApp);
 
       document
-        .getElementById("arome-var-cards")
-        .addEventListener("click", (e) => {
-          const card = e.target.closest(".arome-var-card");
-          if (!card) return;
-          aromeSelVar = card.dataset.short;
-          document
-            .querySelectorAll(".arome-var-card")
-            .forEach((c) =>
-              c.classList.toggle("selected", c.dataset.short === aromeSelVar),
-            );
-          document.getElementById("btn-arome-load").disabled = false;
-        });
-
-      document
-        .getElementById("btn-arome-load")
-        .addEventListener("click", () => {
-          startAromeDownload();
+        .getElementById("arome-var-select")
+        .addEventListener("change", (e) => {
+          if (!aromeState) return;
+          aromeState.variable = e.target.value;
+          aromeState.decoded.clear();
+          aromeState.decodedOrder = [];
+          const idx = parseInt(
+            document.getElementById("arome-slider").value,
+            10,
+          );
+          aromeShowHour(idx);
         });
 
       const aromeSlider = document.getElementById("arome-slider");
