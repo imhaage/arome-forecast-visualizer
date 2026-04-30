@@ -1443,21 +1443,19 @@
         };
 
         let doneCount = 0;
-        await Promise.all(
-          resources.map(async ({ hour, url, filesize }) => {
-            aromeState.buffers.set(
-              hour,
-              await downloadFileProg(url, filesize, (loaded, total) => {
-                fills.get(hour).style.width =
-                  Math.round((loaded / total) * 100) + "%";
-              }),
-            );
-            document.getElementById(`dl-${hour}`).classList.add("done");
-            doneCount++;
-            document.getElementById("arome-dl-status").textContent =
-              `Téléchargement… ${doneCount} / ${resources.length}`;
-          }),
-        );
+        for (const { hour, url, filesize } of resources) {
+          aromeState.buffers.set(
+            hour,
+            await downloadFileProg(url, filesize, (loaded, total) => {
+              fills.get(hour).style.width =
+                Math.round((loaded / total) * 100) + "%";
+            }),
+          );
+          document.getElementById(`dl-${hour}`).classList.add("done");
+          doneCount++;
+          document.getElementById("arome-dl-status").textContent =
+            `Téléchargement… ${doneCount} / ${resources.length}`;
+        }
 
         // Switch to player (reuse #view-grid)
         document.getElementById("view-arome").style.display = "none";
