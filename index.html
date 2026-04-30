@@ -357,6 +357,7 @@
         font-size: 0.76rem;
         color: #555e6d;
         font-variant-numeric: tabular-nums;
+        height: 1.5rem;
       }
       #cs-bar {
         flex: 1;
@@ -434,16 +435,12 @@
         color: #8b919e;
       }
 
-      /* ══════════════════════════════════════════════════════
-       AROME VIEW — variable selection + download
-    ══════════════════════════════════════════════════════ */
-      #view-arome main {
-        max-width: 960px;
-        margin: 0 auto;
-        padding: 32px 24px;
+
+
+      #arome-dl-panel {
+        padding: 20px 24px;
+        border-top: 1px solid #e2e6ec;
       }
-
-
       #arome-dl-status {
         font-size: 0.88rem;
         color: #555e6d;
@@ -504,6 +501,7 @@
         flex: 1;
         cursor: pointer;
       }
+
       #arome-hour-label {
         font-family: monospace;
         font-size: 0.88rem;
@@ -575,16 +573,6 @@
           <h2>Variables</h2>
           <div class="cards" id="cards"></div>
         </div>
-      </main>
-    </div>
-
-    <!-- ══════════════════════════════════════════════════════
-     AROME VIEW
-══════════════════════════════════════════════════════ -->
-    <div id="view-arome" style="display: none">
-      <main>
-        <p id="arome-dl-status">Fetching file list…</p>
-        <div id="arome-dl-bars"></div>
       </main>
     </div>
 
@@ -688,6 +676,11 @@
           <span id="cs-max"></span>
           <span id="cs-unit"></span>
         </div>
+
+        <div id="arome-dl-panel" style="display: none">
+          <p id="arome-dl-status"></p>
+          <div id="arome-dl-bars"></div>
+        </div>
       </main>
     </div>
 
@@ -724,7 +717,7 @@
       let currentPalette = "Plasma";
       let map = null; // MapLibre instance (created once, reused)
       let heatCanvas = null; // offscreen canvas for heatmap rendering
-      let aromeState = null; // { resources, buffers, decoded, decodedOrder, variable, mapReady }
+      let aromeState = null; // { resources, buffers, decoded, decodedOrder, variable }
       let isDecoding = false;
       let pendingHourIdx = null;
 
@@ -999,6 +992,7 @@
         document.getElementById("results").style.display = "none";
         document.getElementById("cards").innerHTML = "";
         document.getElementById("arome-dl-bars").innerHTML = "";
+        document.getElementById("arome-dl-panel").style.display = "none";
         location.hash = "";
       }
 
@@ -1136,6 +1130,9 @@
         document.getElementById("cs-min").textContent = fmtNum(min, 2);
         document.getElementById("cs-max").textContent = fmtNum(max, 2);
         document.getElementById("cs-unit").textContent = p.units;
+        document.getElementById("cs-min").style.visibility = "visible";
+        document.getElementById("cs-max").style.visibility = "visible";
+        document.getElementById("cs-unit").style.visibility = "visible";
         document.getElementById("colorscale").style.display = "flex";
       }
 
@@ -1188,6 +1185,24 @@
         return out;
       }
 
+      async function initAromeMap() {
+        if (map) return;
+        map = new maplibregl.Map({
+          container: "map",
+          style: "https://tiles.openfreemap.org/styles/positron",
+          attributionControl: true,
+        });
+        await new Promise((r) => map.once("load", r));
+        map.fitBounds([[-12, 37.5], [16, 55.4]], { padding: 20, animate: false });
+        map.addControl(
+          new maplibregl.FullscreenControl({
+            container: document.getElementById("map-wrap"),
+          }),
+        );
+        setupHoverTooltip();
+      }
+
+
       async function aromeShowHour(idx) {
         if (isDecoding) { pendingHourIdx = idx; return; }
         isDecoding = true;
@@ -1205,6 +1220,18 @@
         } else {
           if (decodedOrder.length >= 5) decoded.delete(decodedOrder.shift());
           const buffer = buffers.get(hour);
+          if (!buffer) {
+            if (map?.getSource("grib2")) {
+              map.removeLayer("grib2-layer");
+              map.removeSource("grib2");
+            }
+            gridState = null;
+            document.getElementById("cs-min").style.visibility = "hidden";
+            document.getElementById("cs-max").style.visibility = "hidden";
+            document.getElementById("cs-unit").style.visibility = "hidden";
+            isDecoding = false;
+            return;
+          }
           let targetMsg = null;
           for (const msg of iterateGRIB2Messages(buffer)) {
             if (msg.product.shortName === variable) {
@@ -1259,20 +1286,7 @@
           [lo2, la2],
           [lo1, la2],
         ];
-        if (!map) {
-          map = new maplibregl.Map({
-            container: "map",
-            style: "https://tiles.openfreemap.org/styles/positron",
-            attributionControl: true,
-          });
-          await new Promise((r) => map.once("load", r));
-          map.addControl(
-            new maplibregl.FullscreenControl({
-              container: document.getElementById("map-wrap"),
-            }),
-          );
-          setupHoverTooltip();
-        }
+        if (!map) await initAromeMap();
 
         // (Re)create source if canvas changed or source missing
         if (!map.getSource("grib2") || canvasChanged) {
@@ -1293,17 +1307,6 @@
             paint: { "raster-opacity": 0.8, "raster-resampling": "nearest" },
           });
         }
-        if (!aromeState.mapReady) {
-          map.fitBounds(
-            [
-              [lo1, la2],
-              [lo2, la1],
-            ],
-            { padding: 20, animate: false },
-          );
-          aromeState.mapReady = true;
-        }
-
         // Update stats + colorscale + valid time
         document.getElementById("gv-min").textContent =
           fmtNum(min, 3) + " " + product.units;
@@ -1316,6 +1319,9 @@
         document.getElementById("cs-min").textContent = fmtNum(min, 2);
         document.getElementById("cs-max").textContent = fmtNum(max, 2);
         document.getElementById("cs-unit").textContent = product.units;
+        document.getElementById("cs-min").style.visibility = "visible";
+        document.getElementById("cs-max").style.visibility = "visible";
+        document.getElementById("cs-unit").style.visibility = "visible";
         document.getElementById("colorscale").style.display = "flex";
         document.getElementById("arome-valid-time").textContent = fmtValidTime(
           header,
@@ -1331,6 +1337,27 @@
       }
 
       async function startAromeDownload() {
+        // Init state + UI before fetch
+        aromeState = {
+          resources: [],
+          buffers: new Map(),
+          decoded: new Map(),
+          decodedOrder: [],
+          variable: SP1_VARIABLES[0].shortName,
+        };
+
+        const varSelect = document.getElementById("arome-var-select");
+        varSelect.innerHTML = SP1_VARIABLES.map(
+          (v) => `<option value="${v.shortName}">${v.name}</option>`,
+        ).join("");
+        varSelect.value = aromeState.variable;
+
+        const slider = document.getElementById("arome-slider");
+        slider.value = 0;
+
+        // Show base map immediately
+        await initAromeMap();
+
         document.getElementById("arome-dl-status").textContent =
           "Fetching file list…";
 
@@ -1343,6 +1370,8 @@
           return;
         }
 
+        aromeState.resources = resources;
+        slider.max = resources.length - 1;
         document.getElementById("arome-dl-status").textContent =
           `Downloading ${resources.length} SP1 files…`;
 
@@ -1360,15 +1389,6 @@
           fills.set(hour, document.getElementById(`fill-${hour}`));
         }
 
-        aromeState = {
-          resources,
-          buffers: new Map(),
-          decoded: new Map(),
-          decodedOrder: [],
-          variable: SP1_VARIABLES[0].shortName,
-          mapReady: false,
-        };
-
         let doneCount = 0;
         await Promise.all(
           resources.map(async ({ hour, url, filesize }) => {
@@ -1383,33 +1403,20 @@
             doneCount++;
             document.getElementById("arome-dl-status").textContent =
               `Downloading… ${doneCount} / ${resources.length}`;
+            const currentIdx = parseInt(slider.value, 10);
+            if (resources[currentIdx]?.hour === hour && !gridState) {
+              aromeShowHour(currentIdx);
+            }
           }),
         );
 
-        // Switch to player (reuse #view-grid)
-        document.getElementById("view-arome").style.display = "none";
-        document.getElementById("view-grid").style.display = "block";
-        document.getElementById("grid-toolbar").style.display = "none";
-        document.getElementById("arome-player-toolbar").style.display = "flex";
-
-        const varSelect = document.getElementById("arome-var-select");
-        varSelect.innerHTML = SP1_VARIABLES.map(
-          (v) => `<option value="${v.shortName}">${v.name}</option>`,
-        ).join("");
-        varSelect.value = aromeState.variable;
-
-        const slider = document.getElementById("arome-slider");
-        slider.max = resources.length - 1;
-        slider.value = 0;
-
-        // Decode and show first hour
-        await aromeShowHour(0);
+        document.getElementById("arome-dl-panel").style.display = "none";
       }
 
       // ── Router (hash-based) ───────────────────────────────────────────────────────
 
       function showView(name) {
-        for (const id of ["view-home", "view-arome", "view-grid"])
+        for (const id of ["view-home", "view-grid"])
           document.getElementById(id).style.display =
             id === name ? "block" : "none";
       }
@@ -1423,7 +1430,10 @@
             "none";
           showGridView(decodeURIComponent(hash.slice(6)));
         } else if (hash === "#arome") {
-          showView("view-arome");
+          showView("view-grid");
+          document.getElementById("grid-toolbar").style.display = "none";
+          document.getElementById("arome-player-toolbar").style.display = "flex";
+          document.getElementById("arome-dl-panel").style.display = "block";
           if (!aromeState) startAromeDownload();
         } else {
           showView("view-home");
